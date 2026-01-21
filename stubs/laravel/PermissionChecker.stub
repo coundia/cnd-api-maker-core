@@ -1,0 +1,99 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Security\Rbac;
+
+use App\Tenancy\TenantContext;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
+
+final readonly class PermissionChecker
+{
+    private const CACHE_PREFIX = 'perm';
+
+    public function __construct(
+        private TenantContext $tenantContext,
+    ) {
+    }
+
+    public function require(string $permissionCode): void
+    {
+        if ((bool) config('security.not_secure', false) === true) {
+            return;
+        }
+
+        $tenantId = (string) $this->tenantContext->requireId();
+        $userId = (string) (Auth::id() ?? '');
+
+        if ($userId === '') {
+            throw new UnauthorizedHttpException('Bearer', 'Unauthenticated');
+        }
+
+        $permissionCode = strtoupper(trim($permissionCode));
+        if ($permissionCode === '') {
+            throw new AccessDeniedHttpException('Forbidden');
+        }
+
+        $cacheKey = $this->cacheKey($tenantId, $userId, $permissionCode);
+        $ttl = app()->environment('testing') ? 0 : 30;
+
+        $exists = $ttl === 0
+            ? $this->exists($tenantId, $userId, $permissionCode)
+            : Cache::remember($cacheKey, $ttl, fn (): bool => $this->exists($tenantId, $userId, $permissionCode));
+
+        if (!$exists) {
+
+            throw new AccessDeniedHttpException('Forbidden');
+        }
+    }
+
+    public function forgetCachedPermission(string $tenantId, string $userId, string $permissionCode): void
+    {
+        $permissionCode = strtoupper(trim($permissionCode));
+        if ($permissionCode === '') {
+            return;
+        }
+
+        Cache::forget($this->cacheKey((string) $tenantId, (string) $userId, $permissionCode));
+    }
+
+    public function forgetCachedPermissionsForUser(string $tenantId, string $userId, array $permissionCodes): void
+    {
+        $tenantId = (string) $tenantId;
+        $userId = (string) $userId;
+
+        foreach ($permissionCodes as $code) {
+            $code = strtoupper(trim((string) $code));
+            if ($code === '') {
+                continue;
+            }
+            Cache::forget($this->cacheKey($tenantId, $userId, $code));
+        }
+    }
+
+    private function exists(string $tenantId, string $userId, string $permissionCode): bool
+    {
+        return DB::table('user_roles')
+            ->join('roles', 'roles.id', '=', 'user_roles.role_id')
+            ->join('role_permissions', 'role_permissions.role_id', '=', 'roles.id')
+            ->join('permissions', 'permissions.id', '=', 'role_permissions.permission_id')
+            ->whereNull('user_roles.deleted_at')
+            ->whereNull('roles.deleted_at')
+            ->whereNull('permissions.deleted_at')
+            ->where('user_roles.tenant_id', $tenantId)
+            ->where('user_roles.user_id', $userId)
+            ->where('roles.active', 1)
+            ->where('permissions.active', 1)
+            ->where('permissions.code', $permissionCode)
+            ->exists();
+    }
+
+    private function cacheKey(string $tenantId, string $userId, string $permissionCode): string
+    {
+        return self::CACHE_PREFIX . ':' . $tenantId . ':' . $userId . ':' . $permissionCode;
+    }
+}

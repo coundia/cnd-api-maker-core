@@ -1,0 +1,313 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Database\Seeders;
+
+use App\Models\Tenant;
+use App\Models\User;
+use App\Models\UserRole;
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+
+final class SecuritySeederTenant extends Seeder
+{
+    public function run(): void
+    {
+        $roles = $this->roles();
+        $permissions = $this->permissions();
+        $rolePermissions = $this->rolePermissions();
+        $superAdmin = $this->superAdmin();
+
+        Log::info('[SecuritySeeder] start', [
+            'roles' => count($roles),
+            'permissions' => count($permissions),
+            'role_permissions' => count($rolePermissions),
+            'db' => config('database.default'),
+            'driver' => DB::connection()->getDriverName(),
+            'super_admin_email' => (string) ($superAdmin['email'] ?? ''),
+        ]);
+
+        if (Tenant::query()->count() === 0) {
+            $tenant = $this->ensureDefaultTenant();
+            Log::warning('[SecuritySeeder] no tenants found, default tenant created', [
+                'tenant_id' => (string) $tenant->getKey(),
+                'tenant_slug' => $tenant->slug ?? null,
+            ]);
+        }
+
+        Tenant::query()->chunkById(200, function ($tenants) use ($roles, $permissions, $rolePermissions, $superAdmin): void {
+            foreach ($tenants as $tenant) {
+                $tenantId = (string) $tenant->getKey();
+
+                Log::info('[SecuritySeeder] seeding tenant', [
+                    'tenant_id' => $tenantId,
+                    'tenant_slug' => $tenant->slug ?? null,
+                ]);
+
+                DB::transaction(function () use ($tenantId, $roles, $permissions, $rolePermissions, $superAdmin): void {
+                    $now = now();
+
+                    [$roleIdsByCode, $rolesCreated] = $this->upsertRoles($tenantId, $roles, $now);
+                    [$permIdsByCode, $permsCreated] = $this->upsertPermissions($tenantId, $permissions, $now);
+                    $pivotsCreated = $this->upsertRolePermissions($tenantId, $roleIdsByCode, $permIdsByCode, $rolePermissions, $now);
+
+                    $superAdminUser = $this->ensureSuperAdminUser($superAdmin);
+
+                    $adminRoleId = $roleIdsByCode['TENANT_ADMIN'] ?? null;
+                    if (is_string($adminRoleId) && $adminRoleId !== '') {
+                        $this->ensureUserRole($tenantId, $superAdminUser, $adminRoleId, $now);
+                    }
+
+                    Log::info('[SecuritySeeder] tenant done', [
+                        'tenant_id' => $tenantId,
+                        'roles_upserted' => count($roleIdsByCode),
+                        'roles_created' => $rolesCreated,
+                        'permissions_upserted' => count($permIdsByCode),
+                        'permissions_created' => $permsCreated,
+                        'role_permissions_created' => $pivotsCreated,
+                        'super_admin_user_id' => (string) $superAdminUser->getKey(),
+                        'super_admin_tenant_admin_role_id' => (string) ($adminRoleId ?? ''),
+                    ]);
+                });
+            }
+        });
+
+        Log::info('[SecuritySeeder] done');
+    }
+
+    private function roles(): array
+    {
+        $roles = (array) config('security.default_roles', []);
+        return array_values(array_filter($roles, fn ($r) => is_array($r) && (string) ($r['code'] ?? '') !== ''));
+    }
+
+    private function permissions(): array
+    {
+        $perms = (array) config('security.default_permissions', []);
+        return array_values(array_filter($perms, fn ($p) => is_array($p) && (string) ($p['code'] ?? '') !== ''));
+    }
+
+    private function rolePermissions(): array
+    {
+        return (array) config('security.role_permissions', []);
+    }
+
+    private function superAdmin(): array
+    {
+        return (array) config('security.super_admin', [
+            'email' => 'coundia@pcoundia.com',
+            'password' => 'password',
+            'name' => 'Super Admin',
+        ]);
+    }
+
+    private function ensureDefaultTenant(): Tenant
+    {
+        return Tenant::query()->firstOrCreate(
+            ['slug' => 'default'],
+            [
+                'id' => (string) Str::uuid(),
+                'name' => 'Default Tenant',
+            ]
+        );
+    }
+
+    private function ensureSuperAdminUser(array $superAdmin): User
+    {
+        $email = (string) ($superAdmin['email'] ?? 'contact@pcoundia.com');
+        $name = (string) ($superAdmin['name'] ?? 'Super Admin');
+        $password = (string) ($superAdmin['password'] ?? 'password');
+
+        $user = User::query()->where('email', $email)->first();
+        if ($user instanceof User) {
+            return $user;
+        }
+
+        $user = new User();
+        $user->email = $email;
+        $user->name = $name;
+        $user->password = Hash::make($password);
+
+        if (property_exists($user, 'active')) {
+            $user->active = true;
+        }
+
+        if (property_exists($user, 'is_verified')) {
+            $user->is_verified = true;
+        }
+
+        if (property_exists($user, 'roles')) {
+            $user->roles = ['ROLE_SUPER_ADMIN'];
+        }
+
+        $user->saveOrFail();
+
+        return $user;
+    }
+
+    private function upsertRoles(string $tenantId, array $roles, \DateTimeInterface $now): array
+    {
+        $roleIdsByCode = [];
+        $created = 0;
+
+        foreach ($roles as $role) {
+            $code = (string) ($role['code'] ?? '');
+            if ($code === '') {
+                continue;
+            }
+
+            $existingRoleId = DB::table('roles')
+                ->where('tenant_id', $tenantId)
+                ->where('code', $code)
+                ->value('id');
+
+            $roleId = (is_string($existingRoleId) && $existingRoleId !== '')
+                ? $existingRoleId
+                : (string) Str::uuid();
+
+            if (!is_string($existingRoleId) || $existingRoleId === '') {
+                $created++;
+            }
+
+            DB::table('roles')->updateOrInsert(
+                ['tenant_id' => $tenantId, 'code' => $code],
+                [
+                    'id' => $roleId,
+                    'label' => (string) ($role['label'] ?? $code),
+                    'description' => array_key_exists('description', $role) ? (string) $role['description'] : null,
+                    'color' => array_key_exists('color', $role) ? (string) $role['color'] : null,
+                    'active' => 1,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]
+            );
+
+            $roleIdsByCode[$code] = $roleId;
+        }
+
+        return [$roleIdsByCode, $created];
+    }
+
+    private function upsertPermissions(string $tenantId, array $permissions, \DateTimeInterface $now): array
+    {
+        $permIdsByCode = [];
+        $created = 0;
+
+        foreach ($permissions as $perm) {
+            $code = strtoupper((string) ($perm['code'] ?? ''));
+            if ($code === '') {
+                continue;
+            }
+
+            $existingPermId = DB::table('permissions')
+                ->where('tenant_id', $tenantId)
+                ->where('code', $code)
+                ->value('id');
+
+            $permId = (is_string($existingPermId) && $existingPermId !== '')
+                ? $existingPermId
+                : (string) Str::uuid();
+
+            if (!is_string($existingPermId) || $existingPermId === '') {
+                $created++;
+            }
+
+            DB::table('permissions')->updateOrInsert(
+                ['tenant_id' => $tenantId, 'code' => $code],
+                [
+                    'id' => $permId,
+                    'label' => (string) ($perm['label'] ?? $code),
+                    'description' => array_key_exists('description', $perm) ? (string) $perm['description'] : null,
+                    'active' => 1,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]
+            );
+
+            $permIdsByCode[$code] = $permId;
+        }
+
+        return [$permIdsByCode, $created];
+    }
+
+    private function upsertRolePermissions(
+        string $tenantId,
+        array $roleIdsByCode,
+        array $permIdsByCode,
+        array $rolePermissions,
+        \DateTimeInterface $now
+    ): int {
+        $created = 0;
+
+        foreach ($rolePermissions as $roleCode => $permCodes) {
+            $roleId = $roleIdsByCode[(string) $roleCode] ?? null;
+            if (!is_string($roleId) || $roleId === '') {
+                continue;
+            }
+
+            foreach ((array) $permCodes as $permCode) {
+                $permId = $permIdsByCode[strtoupper((string) $permCode)] ?? null;
+                if (!is_string($permId) || $permId === '') {
+                    continue;
+                }
+
+                $existingPivotId = DB::table('role_permissions')
+                    ->where('role_id', $roleId)
+                    ->where('permission_id', $permId)
+                    ->value('id');
+
+                $pivotId = (is_string($existingPivotId) && $existingPivotId !== '')
+                    ? $existingPivotId
+                    : (string) Str::uuid();
+
+                if (!is_string($existingPivotId) || $existingPivotId === '') {
+                    $created++;
+                }
+
+                DB::table('role_permissions')->updateOrInsert(
+                    ['role_id' => $roleId, 'permission_id' => $permId],
+                    [
+                        'id' => $pivotId,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ]
+                );
+            }
+        }
+
+        return $created;
+    }
+
+    private function ensureUserRole(string $tenantId, User $user, string $roleId, \DateTimeInterface $now): UserRole
+    {
+        $userId = (int) $user->getKey();
+
+        $existingId = DB::table('user_roles')
+            ->where('tenant_id', $tenantId)
+            ->where('user_id', $userId)
+            ->where('role_id', $roleId)
+            ->value('id');
+
+        if (is_string($existingId) && $existingId !== '') {
+            $existing = UserRole::query()->find($existingId);
+            if ($existing instanceof UserRole) {
+                return $existing;
+            }
+        }
+
+        $model = new UserRole();
+        $model->id = (string) Str::uuid();
+        $model->tenant_id = $tenantId;
+        $model->user_id = $userId;
+        $model->role_id = $roleId;
+        $model->created_at = $now;
+        $model->updated_at = $now;
+        $model->saveOrFail();
+
+        return $model;
+    }
+}

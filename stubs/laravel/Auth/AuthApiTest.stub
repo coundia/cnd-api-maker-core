@@ -1,0 +1,42 @@
+<?php
+
+declare(strict_types=1);
+namespace Tests\Feature\Security;
+
+use Illuminate\Support\Str;
+use Tests\Support\BaseApiTestCase;
+
+final class AuthApiTest extends BaseApiTestCase
+{
+    // Ensures register/login endpoints work with tenant context and return Sanctum tokens.
+    public function test_it_can_register_and_login(): void
+    {
+        $tenant = $this->createTenant();
+
+        $headers = array_merge($this->tenantHeaders($tenant), [
+            'Accept' => 'application/ld+json',
+            'Content-Type' => 'application/ld+json',
+        ]);
+
+        $email = 'user+'.Str::lower(Str::random(6)).'@pcoundia.com';
+        $password = 'password123';
+
+        $register = $this->apiLdPost('/auth/register', [
+            'email' => $email,
+            'password' => $password,
+            'name' => 'User Test',
+        ], $headers);
+
+
+        $register->assertStatus(201);
+        $this->assertNotEmpty($register->json('token'));
+
+        $login = $this->apiLdPost('/auth/login', [
+            'email' => $email,
+            'password' => $password,
+        ], $headers);
+
+        $login->assertStatus(201);
+        $this->assertNotEmpty($login->json('token'));
+    }
+}

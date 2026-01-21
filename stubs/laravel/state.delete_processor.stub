@@ -1,0 +1,34 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{namespace}};
+
+use ApiPlatform\Metadata\Operation;
+use ApiPlatform\State\ProcessorInterface;
+use {{repoFqn}};
+{{securityUses}}
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
+
+final readonly class {{entity}}DeleteProcessor implements ProcessorInterface
+{
+    public function __construct(
+        private {{entity}}Repository $repo{{securityCtorArg}}
+    ) {
+    }
+
+    public function process(mixed $data, Operation $operation, array $uriVariables = [], array $context = []): mixed
+    {
+        if ((string) ($operation->getName() ?? '') !== '{{opDelete}}') {
+            throw new BadRequestHttpException('Unsupported operation');
+        }
+
+        {{securityRequireDelete}}
+
+        $id = (string) ($uriVariables['id'] ?? '');
+        $p = $this->repo->findOrFail($id);
+        $p->delete();
+
+        return null;
+    }
+}

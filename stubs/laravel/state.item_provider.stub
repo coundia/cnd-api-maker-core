@@ -1,0 +1,34 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{namespace}};
+
+use ApiPlatform\Metadata\Operation;
+use ApiPlatform\State\ProviderInterface;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+{{securityUses}}
+{{fileReaderUses}}
+
+final readonly class {{entity}}ItemProvider implements ProviderInterface
+{
+    public function __construct(
+        private {{entity}}Repository $repo {{securityCtorArg}}{{fileReaderCtorArg}}
+    ) {
+{{fileReaderCtorAssign}}
+    }
+
+    public function provide(Operation $operation, array $uriVariables = [], array $context = []): array|null|object
+    {
+{{securityRequireView}}
+
+        $id = (string) ($uriVariables['id'] ?? '');
+        $p = $this->repo->findOrFail($id);
+
+        $opName = (string) ($operation->getName() ?? '');
+
+{{fileReadCasesLines}}
+
+        return $p;
+    }
+}

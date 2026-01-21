@@ -1,0 +1,81 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\State\Auth;
+
+use ApiPlatform\Metadata\Operation;
+use ApiPlatform\State\ProcessorInterface;
+use App\Dto\Auth\LoginInput;
+use App\Dto\Auth\LoginOutput;
+use App\Models\User;
+use App\Tenancy\TenantContext;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
+
+final class LoginProcessor implements ProcessorInterface
+{
+    public function __construct(
+        private readonly TenantContext $tenantContext
+    ) {
+    }
+
+    public function process(mixed $data, Operation $operation, array $uriVariables = [], array $context = []): LoginOutput
+    {
+        if (!$data instanceof LoginInput) {
+            throw ValidationException::withMessages(['body' => ['Invalid payload']]);
+        }
+
+        $payload = [
+            'email' => $data->email,
+            'password' => $data->password,
+        ];
+
+        validator($payload, [
+            'email' => ['required', 'email:rfc,dns', 'max:191'],
+            'password' => ['required', 'string', 'max:191'],
+        ])->validate();
+
+        $tenantId = (string) $this->tenantContext->requireId();
+        $email = mb_strtolower(trim((string) $payload['email']));
+
+        $user = User::query()->where('email', $email)->first();
+        if (!$user instanceof User) {
+            throw ValidationException::withMessages(['email' => ['Invalid credentials']]);
+        }
+
+        if (!Hash::check((string) $payload['password'], (string) $user->password)) {
+            throw ValidationException::withMessages(['password' => ['Invalid credentials']]);
+        }
+
+        if (property_exists($user, 'active') && !$user->active) {
+            throw ValidationException::withMessages(['email' => ['Account disabled']]);
+        }
+
+        $isMember = DB::table('user_roles')
+            ->where('tenant_id', $tenantId)
+            ->where('user_id', (int) $user->getKey())
+            ->exists();
+
+        if (!$isMember) {
+            throw ValidationException::withMessages(['tenant' => ['User not member of this tenant']]);
+        }
+
+        $token = method_exists($user, 'createToken')
+            ? $user->createToken('api')->plainTextToken
+            : null;
+
+        if (!is_string($token) || $token === '') {
+            throw ValidationException::withMessages(['token' => ['Token cannot be created (Sanctum not enabled on User model)']]);
+        }
+
+        return LoginOutput::from([
+            'id' => (string) $user->getKey(),
+            'email' => (string) $user->email,
+            'name' => property_exists($user, 'name') ? (string) ($user->name ?? '') : null,
+            'token' => $token,
+            'tenantId' => $tenantId,
+        ]);
+    }
+}

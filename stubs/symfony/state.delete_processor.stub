@@ -1,0 +1,36 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\State\{{entity}};
+
+use ApiPlatform\Metadata\Operation;
+use ApiPlatform\State\ProcessorInterface;
+use App\Repository\{{entity}}Repository;
+use Doctrine\ORM\EntityManagerInterface;
+
+final readonly class {{entity}}DeleteProcessor implements ProcessorInterface
+{
+	public function __construct(
+		private EntityManagerInterface $em,
+		private {{entity}}Repository $repository
+	) {
+	}
+
+	public function process(mixed $data, Operation $operation, array $uriVariables = [], array $context = []): mixed
+	{
+		$id = $uriVariables['id'] ?? null;
+		if ($id === null) {
+			return null;
+		}
+
+		$entity = {{repoFindOneCall}};
+		if ($entity === null) {
+			return null;
+		}
+
+{{deleteLogic}}
+
+		return null;
+	}
+}

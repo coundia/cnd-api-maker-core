@@ -1,0 +1,29 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Dto\Auth;
+
+final
+// Output DTO for user login response.
+class LoginOutput
+{
+    public string $id;
+    public string $email;
+    public ?string $name = null;
+    public string $token;
+    public ?string $tenantId = null;
+    public ?string $tenantMemberId = null;
+
+    public static function from(array $data): self
+    {
+        $o = new self();
+        $o->id = (string) ($data['id'] ?? '');
+        $o->email = (string) ($data['email'] ?? '');
+        $o->name = isset($data['name']) ? (string) $data['name'] : null;
+        $o->token = (string) ($data['token'] ?? '');
+        $o->tenantId = isset($data['tenantId']) ? (string) $data['tenantId'] : null;
+        $o->tenantMemberId = isset($data['tenantMemberId']) ? (string) $data['tenantMemberId'] : null;
+        return $o;
+    }
+}

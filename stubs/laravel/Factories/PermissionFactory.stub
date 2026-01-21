@@ -1,0 +1,49 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Database\Factories;
+
+use App\Models\Permission;
+use App\Models\Tenant;
+use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Support\Str;
+
+final class PermissionFactory extends Factory
+{
+    protected $model = Permission::class;
+
+    public function definition(): array
+    {
+        $uuid = (string) Str::uuid();
+
+        return [
+            'id' => (string) Str::uuid(),
+            'tenant_id' => Tenant::factory(),
+            'code' => strtoupper(Str::limit(Str::slug($this->faker->unique()->word(), '_'), 80, '')),
+            'label' => $this->faker->sentence(3),
+            'active' => true,
+            'description' => $this->faker->optional()->paragraph(),
+        ];
+    }
+
+    public function forTenant(Tenant|Factory $tenant): self
+    {
+        return $this->state(fn (): array => [
+            'tenant_id' => $tenant instanceof Tenant ? (string) $tenant->getKey() : $tenant,
+        ]);
+    }
+
+    public function code(string $code): self
+    {
+        $code = strtoupper(trim($code));
+
+        return $this->state(fn (): array => [
+            'code' => $code,
+            'label' => $this->faker->sentence(3),
+            'active' => true,
+            'description' => $this->faker->optional()->paragraph(),
+        ]);
+    }
+
+}

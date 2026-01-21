@@ -1,0 +1,21 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{namespace}};
+
+use {{modelFqn}};
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
+
+final class {{entity}}Resource extends JsonResource
+{
+    public function toArray(Request $request): array
+    {
+        $p = $this->resource;
+
+        return [
+{{resourceFields}}
+        ];
+    }
+}

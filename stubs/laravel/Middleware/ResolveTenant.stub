@@ -1,0 +1,48 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Tenancy\Http\Middleware;
+  {{#hasTenant}}
+use App\Models\Tenant;
+use App\Tenancy\TenantContext;  {{/hasTenant}}
+use Closure;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
+
+final class ResolveTenant
+{
+  {{#hasTenant}}
+    public function __construct(private TenantContext $context) {}  {{/hasTenant}}
+
+    public function handle(Request $request, Closure $next): Response
+    {
+    //check if tenant exists in db
+  {{#hasTenant}}
+        $headerName = (string) config('tenancy.header', 'X-Tenant');
+
+        $slug = $request->header($headerName)
+            ?? $request->query('tenant')
+            ?? $request->route('tenant')
+            ?? config('tenancy.default_tenant_slug');
+
+
+        $slug = is_string($slug) ? trim($slug) : '';
+        if ($slug === '') {
+            print_r("Could not resolve tenant slug");
+            abort(400, 'Cannot resolve tenant context');
+        }
+
+        $tenantId = Tenant::query()->where('slug', $slug)->value('id');
+
+        if (!$tenantId) {
+            print_r("Tenant $slug not found");
+            abort(404, 'Tenant not found');
+        }
+
+        $this->context->setId((string) $tenantId);
+        $this->context->setSlug($slug);
+{{/hasTenant}}
+        return $next($request);
+    }
+}

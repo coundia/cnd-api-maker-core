@@ -1,0 +1,30 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\State\{{entity}};
+
+use ApiPlatform\Metadata\Operation;
+use ApiPlatform\State\ProviderInterface;
+use App\Repository\{{entity}}Repository;
+
+final readonly class {{entity}}CollectionProvider implements ProviderInterface
+{
+	public function __construct(
+		private {{entity}}Repository $repository,
+		private {{entity}}Mapper $mapper
+	) {
+	}
+
+	public function provide(Operation $operation, array $uriVariables = [], array $context = []): array
+	{
+		$items = {{repoFindAllCall}};
+
+		$out = [];
+		foreach ($items as $entity) {
+			$out[] = $this->mapper->toOutput($entity);
+		}
+
+		return $out;
+	}
+}

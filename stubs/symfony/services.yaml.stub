@@ -1,0 +1,9 @@
+services:
+  {{stateNamespace}}\{{entity}}Repository: ~
+  {{stateNamespace}}\{{entity}}Mapper: ~
+  {{stateNamespace}}\{{entity}}PayloadResolver: ~
+  {{stateNamespace}}\{{entity}}Writer: ~
+  {{stateNamespace}}\{{entity}}CollectionProvider: ~
+  {{stateNamespace}}\{{entity}}ItemProvider: ~
+  {{stateNamespace}}\{{entity}}WriteProcessor: ~
+  {{stateNamespace}}\{{entity}}DeleteProcessor: ~

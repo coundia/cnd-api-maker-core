@@ -1,0 +1,77 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Service;
+
+use Symfony\Component\Uid\Uuid;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
+
+final readonly class Base64FileService
+{
+    public function __construct(
+    	#[Autowire('%env(resolve:UPLOADS_PRIVATE_DIR)%')]
+        private string $uploadDir = "var/uploads",
+        private int $maxBytes = 10485760,
+        private array $allowedMimes = ['image/png', 'image/jpeg', 'application/pdf','application/octet-stream']
+    ) {
+    }
+
+    public function store(string $base64OrDataUrl, string $prefix): StoredBase64File
+    {
+        [$mime, $bytes] = $this->decode($base64OrDataUrl);
+
+        if (strlen($bytes) > $this->maxBytes) {
+            throw new \InvalidArgumentException('File too large.');
+        }
+
+        if ($mime !== null && $this->allowedMimes !== [] && !in_array($mime, $this->allowedMimes, true)) {
+            throw new \InvalidArgumentException('Unsupported mime type.');
+        }
+
+        $key = rtrim($prefix, '/').'/'.Uuid::v4()->toRfc4122();
+        $path = rtrim($this->uploadDir, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.$key;
+
+        $dir = dirname($path);
+        if (!is_dir($dir)) {
+            mkdir($dir, 0777, true);
+        }
+
+        file_put_contents($path, $bytes);
+
+        return new StoredBase64File(
+            storageKey: $key,
+            mime: $mime,
+            size: strlen($bytes)
+        );
+    }
+
+    private function decode(string $input): array
+    {
+        if (preg_match('#^data:(?<mime>[^;]+);base64,(?<b64>.+)$#', $input, $m)) {
+            $mime = $m['mime'];
+            $raw = base64_decode($m['b64'], true);
+            if ($raw === false) {
+                throw new \InvalidArgumentException('Invalid base64 payload.');
+            }
+            return [$mime, $raw];
+        }
+
+        $raw = base64_decode($input, true);
+        if ($raw === false) {
+            throw new \InvalidArgumentException('Invalid base64 payload.');
+        }
+
+        return [null, $raw];
+    }
+}
+
+final readonly class StoredBase64File
+{
+    public function __construct(
+        public string $storageKey,
+        public ?string $mime,
+        public int $size
+    ) {
+    }
+}

@@ -1,0 +1,12 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{namespace}};
+
+use Symfony\Component\Serializer\Attribute\Groups;
+
+final class {{entity}}Output
+{
+{{properties}}
+}

@@ -1,0 +1,63 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{namespace}};
+
+use ApiPlatform\OpenApi\Factory\OpenApiFactoryInterface;
+use ApiPlatform\OpenApi\OpenApi;
+use Illuminate\Support\Facades\Log;
+use Throwable;
+
+final class OpenApiFactory implements OpenApiFactoryInterface
+{
+    public function __construct(
+        private OpenApiFactoryInterface $decorated,
+        private iterable $contributors,
+    ) {}
+
+    public function __invoke(array $context = []): OpenApi
+    {
+        try {
+            $openApi = $this->decorated->__invoke($context);
+            $openApi = $this->withBearerAuth($openApi);
+
+            $paths = $openApi->getPaths();
+
+            foreach ($this->contributors as $contributor) {
+                if ($contributor instanceof PathsContributor) {
+                    $contributor->add($paths);
+                }
+            }
+
+            return $openApi;
+        } catch (Throwable $e) {
+            Log::error('OpenApiFactory failed', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            throw $e;
+        }
+    }
+
+    private function withBearerAuth(OpenApi $openApi): OpenApi
+    {
+        $props = $openApi->getExtensionProperties();
+
+        $components = (array) ($props['components'] ?? []);
+        $securitySchemes = (array) ($components['securitySchemes'] ?? []);
+
+        $securitySchemes['bearerAuth'] = [
+            'type' => 'http',
+            'scheme' => 'bearer',
+            'bearerFormat' => '{{bearerFormat}}',
+        ];
+
+        $components['securitySchemes'] = $securitySchemes;
+
+        return $openApi->withExtensionProperty('components', $components);
+    }
+}

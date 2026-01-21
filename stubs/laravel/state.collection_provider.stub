@@ -1,0 +1,37 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{namespace}};
+
+use ApiPlatform\Metadata\Operation;
+use ApiPlatform\State\ProviderInterface;
+use {{repoFqn}};
+{{securityUses}}
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+
+final readonly class {{entity}}CollectionProvider implements ProviderInterface
+{
+    public function __construct(
+        private {{entity}}Repository $repo {{securityCtorArg}}
+    ) {
+    }
+
+    public function provide(Operation $operation, array $uriVariables = [], array $context = []): array|null|object
+    {
+        {{securityRequireList}}
+
+        $filters = is_array($context['filters'] ?? null) ? $context['filters'] : [];
+        $page = (int) ($filters['page'] ?? 1);
+        $itemsPerPage = (int) ($filters['itemsPerPage'] ?? $filters['items_per_page'] ?? 50);
+        $itemsPerPage = $itemsPerPage > 0 ? min($itemsPerPage, 200) : 50;
+
+        $paginator = $this->repo->baseQuery()->paginate(
+            perPage: $itemsPerPage,
+            page: $page
+        );
+
+        return $paginator;
+    }
+
+}

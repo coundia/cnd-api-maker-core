@@ -1,0 +1,53 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Files;
+
+use Illuminate\Contracts\Filesystem\Filesystem;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+
+final class FileWriter
+{
+    public function __construct(
+        private readonly string $disk = 'local',
+        private readonly string $baseDir = 'uploads'
+    ) {
+    }
+
+    public function writeBase64(string $base64, string $prefix = 'file'): FileWriteResult
+    {
+        $file = Base64File::parse($base64);
+
+        $ext = $this->guessExtension($file->mimeType);
+        $name = $prefix.'-'.Str::uuid()->toString().($ext !== '' ? '.'.$ext : '');
+        $path = trim($this->baseDir, '/').'/'.$name;
+
+        $fs = $this->fs();
+        $fs->put($path, $file->content);
+
+        return new FileWriteResult(
+            path: $path,
+            disk: $this->disk,
+            mimeType: $file->mimeType,
+            size: strlen($file->content)
+        );
+    }
+
+    private function fs(): Filesystem
+    {
+        return Storage::disk($this->disk);
+    }
+
+    private function guessExtension(string $mime): string
+    {
+        return match ($mime) {
+            'image/png' => 'png',
+            'image/jpeg' => 'jpg',
+            'image/webp' => 'webp',
+            'application/pdf' => 'pdf',
+            default => '',
+        };
+    }
+}

@@ -1,0 +1,28 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{namespace}};
+
+use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
+use Doctrine\Persistence\ManagerRegistry;
+use {{entityFqn}};
+
+final class {{entity}}Repository extends ServiceEntityRepository
+{
+    public function __construct(ManagerRegistry $registry)
+    {
+        parent::__construct($registry, {{entity}}::class);
+    }
+
+    public function findOrFail(string $id): {{entity}}
+    {
+        $e = $this->find($id);
+
+        if (!$e instanceof {{entity}}) {
+            throw new \RuntimeException('{{entity}} not found: '.$id);
+        }
+
+        return $e;
+    }
+}

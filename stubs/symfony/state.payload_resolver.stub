@@ -1,0 +1,62 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\State\{{entity}};
+
+use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\Uid\Uuid;
+
+final readonly class {{entity}}PayloadResolver
+{
+    public function __construct(
+        private EntityManagerInterface $em
+    ) {
+    }
+
+    public function resolve(string $id, string $targetEntity): ?object
+    {
+        $class = $this->fqn($targetEntity);
+
+        return $this->em->find($class, $this->normalizeId($id));
+    }
+
+    public function resolveNullable(mixed $id, string $targetEntity): ?object
+    {
+        if ($id === null) {
+            return null;
+        }
+
+        $s = trim((string) $id);
+        if ($s === '') {
+            return null;
+        }
+
+        return $this->resolve($s, $targetEntity);
+    }
+
+    private function fqn(string $entity): string
+    {
+        $e = trim($entity);
+        if (str_contains($e, '\\')) {
+            return $e;
+        }
+
+        return 'App\\Entity\\'.$e;
+    }
+
+    private function normalizeId(string $id): mixed
+    {
+        $v = trim($id);
+
+        if (preg_match('~^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$~i', $v) === 1) {
+            return Uuid::fromString($v);
+        }
+
+        if (preg_match('~^\d+$~', $v) === 1) {
+            return (int) $v;
+        }
+
+        return $v;
+    }
+}

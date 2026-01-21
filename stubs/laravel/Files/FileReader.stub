@@ -1,0 +1,69 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Files;
+
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+
+final class FileReader
+{
+    public function __construct(private readonly string $disk = 'local')
+    {
+    }
+
+    public function read(string $path): FileReadResult
+    {
+        $path = ltrim(trim($path), '/');
+
+        $fs = Storage::disk($this->disk);
+
+        if (!$fs->exists($path)) {
+            throw new NotFoundHttpException('File not found');
+        }
+
+        $content = (string) $fs->get($path);
+        $mime = (string) ($fs->mimeType($path) ?? 'application/octet-stream');
+
+        return new FileReadResult(
+            content: $content,
+            mimeType: $mime,
+            size: strlen($content)
+        );
+    }
+
+     public function streamFromModelPath(string $path, string $fallbackName = 'file')
+        {
+            $path = ltrim(trim($path), '/');
+            if ($path === '') {
+                throw new NotFoundHttpException('File not found');
+            }
+
+            $disk = Storage::disk('local');
+            if (!$disk->exists($path)) {
+                throw new NotFoundHttpException('File not found');
+            }
+
+            $stream = $disk->readStream($path);
+            if ($stream === false) {
+                throw new NotFoundHttpException('File not found');
+            }
+
+            $mime = (string) ($disk->mimeType($path) ?? 'application/octet-stream');
+            $size = (string) ($disk->size($path) ?? 0);
+            $filename = basename($path);
+            if ($filename === '' || $filename === '.' || $filename === '..') {
+                $filename = $fallbackName;
+            }
+
+            return response()->stream(function () use ($stream): void {
+                fpassthru($stream);
+                fclose($stream);
+            }, 200, [
+                'Content-Type' => $mime,
+                'Content-Length' => $size,
+                'Content-Disposition' => 'inline; filename="'.$filename.'"',
+            ]);
+        }
+}

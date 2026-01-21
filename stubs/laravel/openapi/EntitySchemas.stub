@@ -1,0 +1,68 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{namespace}};
+
+use ApiPlatform\OpenApi\Model;
+
+final class {{entity}}Schemas
+{
+    public function item(): Model\Schema
+    {
+        $schema = new Model\Schema();
+        $schema['type'] = 'object';
+        $schema['properties'] = new \ArrayObject([
+{{itemPropertiesLines}}       ]);
+
+        return $schema;
+    }
+
+    public function create(): Model\Schema
+    {
+        $schema = new Model\Schema();
+        $schema['type'] = 'object';
+        $schema['properties'] = new \ArrayObject([
+{{createPropertiesLines}}        ]);
+{{createRequiredLines}}
+        return $schema;
+    }
+
+    public function update(): Model\Schema
+    {
+        $schema = new Model\Schema();
+        $schema['type'] = 'object';
+        $schema['properties'] = new \ArrayObject([
+{{updatePropertiesLines}}       ]);
+
+        return $schema;
+    }
+
+    public function paginated(Model\Schema $item): Model\Schema
+    {
+        $schema = new Model\Schema();
+        $schema['type'] = 'object';
+        $schema['properties'] = new \ArrayObject([
+            'data' => new \ArrayObject(['type' => 'array', 'items' => $item]),
+            'links' => new \ArrayObject(['type' => 'object']),
+            'meta' => new \ArrayObject(['type' => 'object']),
+        ]);
+        $schema['required'] = ['data'];
+
+        return $schema;
+    }
+
+    public function idParameter(string $description): Model\Parameter
+    {
+        $schema = new Model\Schema();
+        $schema['type'] = 'string';
+
+        return new Model\Parameter(
+            name: 'id',
+            in: 'path',
+            description: $description,
+            required: true,
+            schema: (array)$schema
+        );
+    }
+}

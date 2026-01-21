@@ -1,0 +1,130 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Models;
+
+use ApiPlatform\Metadata\ApiProperty;
+use ApiPlatform\Metadata\ApiResource;
+use ApiPlatform\Metadata\Delete;
+use ApiPlatform\Metadata\Get;
+use ApiPlatform\Metadata\GetCollection;
+use ApiPlatform\Metadata\Link;
+use ApiPlatform\Metadata\Post;
+use ApiPlatform\Metadata\Put;
+use App\Dto\Role\RoleInput;
+use App\State\Role\RoleCollectionProvider;
+use App\State\Role\RoleDeleteProcessor;
+use App\State\Role\RoleItemProvider;
+use App\State\Role\RoleWriteProcessor;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Symfony\Component\Serializer\Attribute\Groups;
+
+use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Models\Concerns\TenantOwned;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+#[ApiResource(
+    operations: [
+        new GetCollection(
+            uriTemplate: '/v1/roles',
+            name: 'role_list',
+            provider: RoleCollectionProvider::class,
+        ),
+        new Post(
+            uriTemplate: '/v1/roles',
+            input: RoleInput::class,
+            name: 'role_create',
+            processor: RoleWriteProcessor::class,
+        ),
+        new Get(
+            uriTemplate: '/v1/roles/{id}',
+            uriVariables: [
+                'id' => new Link(fromClass: Role::class, identifiers: ['id']),
+            ],
+            requirements: [
+                'id' => '[0-9a-fA-F-]{36}',
+            ],
+            name: 'role_item',
+            provider: RoleItemProvider::class,
+        ),
+        new Put(
+            uriTemplate: '/v1/roles/{id}',
+            uriVariables: [
+                'id' => new Link(fromClass: Role::class, identifiers: ['id']),
+            ],
+            requirements: [
+                'id' => '[0-9a-fA-F-]{36}',
+            ],
+            input: RoleInput::class,
+            name: 'role_update',
+            processor: RoleWriteProcessor::class,
+        ),
+        new Delete(
+            uriTemplate: '/v1/roles/{id}',
+            uriVariables: [
+                'id' => new Link(fromClass: Role::class, identifiers: ['id']),
+            ],
+            requirements: [
+                'id' => '[0-9a-fA-F-]{36}',
+            ],
+            output: false,
+            name: 'role_delete',
+            processor: RoleDeleteProcessor::class,
+        ),
+
+    ],
+    normalizationContext: ['groups' => ['role:read']],
+    denormalizationContext: ['groups' => ['role:write']],
+)]
+
+#[ApiProperty(property: 'id', serialize: new Groups(['role:read']))]
+#[ApiProperty(property: 'code', serialize: new Groups(['role:read','role:write']))]
+#[ApiProperty(property: 'label', serialize: new Groups(['role:read','role:write']))]
+#[ApiProperty(property: 'description', serialize: new Groups(['role:read','role:write']))]
+#[ApiProperty(property: 'color', serialize: new Groups(['role:read','role:write']))]
+#[ApiProperty(property: 'active', serialize: new Groups(['role:read','role:write']))]
+#[ApiProperty(property: 'rolePermissions', serialize: new Groups(['role:read']))]
+#[ApiProperty(property: 'userRoles', serialize: new Groups(['role:read']))]
+#[ApiProperty(property: 'tenantId', serialize: new Groups(['role:read']))]
+#[ApiProperty(property: 'createdBy', serialize: new Groups(['role:read']))]
+#[ApiProperty(property: 'updatedBy', serialize: new Groups(['role:read']))]
+#[ApiProperty(property: 'createdAt', serialize: new Groups(['role:read']))]
+#[ApiProperty(property: 'updatedAt', serialize: new Groups(['role:read']))]
+#[ApiProperty(property: 'deletedAt', serialize: new Groups(['role:read']))]
+
+final class Role extends Model
+{
+    use HasFactory;
+    use HasUuids;
+    use SoftDeletes;
+    use TenantOwned;
+
+    protected $table = 'roles';
+
+    protected $fillable = [
+        'code',
+        'label',
+        'description',
+        'color',
+        'active',
+    ];
+
+    protected $casts = [
+        'active' => 'boolean',
+    ];
+
+    public function rolePermissions(): HasMany
+    {
+        return $this->hasMany(RolePermission::class, 'role_id');
+    }
+
+    public function userRoles(): HasMany
+    {
+        return $this->hasMany(UserRole::class, 'role_id');
+    }
+
+
+}

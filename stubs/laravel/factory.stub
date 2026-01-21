@@ -1,0 +1,26 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Database\Factories;
+
+use App\Models\{{entity}};
+{{tenantImportLine}}{{relationImports}}use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Support\Str;
+
+final class {{entity}}Factory extends Factory
+{
+    protected $model = {{entity}}::class;
+
+    public function definition(): array
+    {
+        $uuid = (string) Str::uuid();
+
+        return [
+            {{idLine}}
+            {{tenantLine}}
+{{fieldsLines}}
+        ];
+    }
+{{forTenantMethod}}
+}

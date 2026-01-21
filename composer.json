@@ -1,0 +1,16 @@
+{
+    "name": "cnd-api-maker/core",
+    "type": "library",
+    "license": "proprietary",
+    "require": {
+        "php": "^8.2",
+        "doctrine/inflector": "^2.0",
+        "symfony/filesystem": "^7.0",
+        "symfony/yaml": "^7.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "CndApiMaker\\Core\\": "src/"
+        }
+    }
+}

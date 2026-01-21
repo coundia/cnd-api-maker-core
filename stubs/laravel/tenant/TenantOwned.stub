@@ -1,0 +1,47 @@
+<?php
+
+declare(strict_types=1);
+
+namespace  App\Models\Concerns;
+{{#hasTenant}}
+use App\Tenancy\TenantContext;{{/hasTenant}}
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Scope;
+use Illuminate\Support\Facades\App;
+
+final
+// Adds tenant_id auto-fill and global tenant scope based on TenantContext.
+class TenantOwnedScope implements Scope
+{
+    public function apply(Builder $builder, Model $model): void
+    {
+    //check check tenant_id
+    {{#hasTenant}}
+        /** @var TenantContext $ctx */
+        $ctx = App::make(TenantContext::class);
+
+        if ($ctx->id() !== null) {
+            $builder->where($model->getTable().'.tenant_id', $ctx->id());
+        }{{/hasTenant}}
+    }
+}
+
+trait TenantOwned
+{
+    protected static function bootTenantOwned(): void
+    {
+    //add tenant_id
+     {{#hasTenant}}
+        static::addGlobalScope(new TenantOwnedScope());
+
+        static::creating(function (Model $model): void {
+            if (!isset($model->tenant_id) || $model->tenant_id === null || $model->tenant_id === '') {
+                /** @var TenantContext $ctx */
+                $ctx = App::make(TenantContext::class);
+                $model->tenant_id = $ctx->requireId();
+            }
+        });
+        {{/hasTenant}}
+    }
+}

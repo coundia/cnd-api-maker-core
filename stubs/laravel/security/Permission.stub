@@ -1,0 +1,122 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Models;
+
+use ApiPlatform\Metadata\ApiProperty;
+use ApiPlatform\Metadata\ApiResource;
+use ApiPlatform\Metadata\Delete;
+use ApiPlatform\Metadata\Get;
+use ApiPlatform\Metadata\GetCollection;
+use ApiPlatform\Metadata\Link;
+use ApiPlatform\Metadata\Post;
+use ApiPlatform\Metadata\Put;
+use App\Dto\Permission\PermissionInput;
+use App\State\Permission\PermissionCollectionProvider;
+use App\State\Permission\PermissionDeleteProcessor;
+use App\State\Permission\PermissionItemProvider;
+use App\State\Permission\PermissionWriteProcessor;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Symfony\Component\Serializer\Attribute\Groups;
+
+use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Models\Concerns\TenantOwned;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+#[ApiResource(
+    operations: [
+        new GetCollection(
+            uriTemplate: '/v1/permissions',
+            name: 'permission_list',
+            provider: PermissionCollectionProvider::class,
+        ),
+        new Post(
+            uriTemplate: '/v1/permissions',
+            input: PermissionInput::class,
+            name: 'permission_create',
+            processor: PermissionWriteProcessor::class,
+        ),
+        new Get(
+            uriTemplate: '/v1/permissions/{id}',
+            uriVariables: [
+                'id' => new Link(fromClass: Permission::class, identifiers: ['id']),
+            ],
+            requirements: [
+                'id' => '[0-9a-fA-F-]{36}',
+            ],
+            name: 'permission_item',
+            provider: PermissionItemProvider::class,
+        ),
+        new Put(
+            uriTemplate: '/v1/permissions/{id}',
+            uriVariables: [
+                'id' => new Link(fromClass: Permission::class, identifiers: ['id']),
+            ],
+            requirements: [
+                'id' => '[0-9a-fA-F-]{36}',
+            ],
+            input: PermissionInput::class,
+            name: 'permission_update',
+            processor: PermissionWriteProcessor::class,
+        ),
+        new Delete(
+            uriTemplate: '/v1/permissions/{id}',
+            uriVariables: [
+                'id' => new Link(fromClass: Permission::class, identifiers: ['id']),
+            ],
+            requirements: [
+                'id' => '[0-9a-fA-F-]{36}',
+            ],
+            output: false,
+            name: 'permission_delete',
+            processor: PermissionDeleteProcessor::class,
+        ),
+
+    ],
+    normalizationContext: ['groups' => ['permission:read']],
+    denormalizationContext: ['groups' => ['permission:write']],
+)]
+
+#[ApiProperty(property: 'id', serialize: new Groups(['permission:read']))]
+#[ApiProperty(property: 'code', serialize: new Groups(['permission:read','permission:write']))]
+#[ApiProperty(property: 'label', serialize: new Groups(['permission:read','permission:write']))]
+#[ApiProperty(property: 'active', serialize: new Groups(['permission:read','permission:write']))]
+#[ApiProperty(property: 'description', serialize: new Groups(['permission:read','permission:write']))]
+#[ApiProperty(property: 'rolePermissions', serialize: new Groups(['permission:read']))]
+#[ApiProperty(property: 'tenantId', serialize: new Groups(['permission:read']))]
+#[ApiProperty(property: 'createdBy', serialize: new Groups(['permission:read']))]
+#[ApiProperty(property: 'updatedBy', serialize: new Groups(['permission:read']))]
+#[ApiProperty(property: 'createdAt', serialize: new Groups(['permission:read']))]
+#[ApiProperty(property: 'updatedAt', serialize: new Groups(['permission:read']))]
+#[ApiProperty(property: 'deletedAt', serialize: new Groups(['permission:read']))]
+
+final class Permission extends Model
+{
+    use HasFactory;
+    use HasUuids;
+    use SoftDeletes;
+    use TenantOwned;
+
+    protected $table = 'permissions';
+
+    protected $fillable = [
+        'code',
+        'label',
+        'active',
+        'description',
+    ];
+
+    protected $casts = [
+        'active' => 'boolean',
+    ];
+
+    public function rolePermissions(): HasMany
+    {
+        return $this->hasMany(RolePermission::class, 'permission_id');
+    }
+
+
+}

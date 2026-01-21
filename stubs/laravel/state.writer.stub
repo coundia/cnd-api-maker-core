@@ -1,0 +1,79 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{namespace}};
+
+use {{modelFqn}};
+use App\Files\FileWriter;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
+
+final readonly class {{entity}}Writer
+{
+    public function __construct(
+        private {{entity}}Repository $repo{{#hasFiles}},
+        private FileWriter $files{{/hasFiles}}
+    ) {
+    }
+
+    public function create(array $payload): {{entity}}
+    {
+{{requireLines}}
+
+        $p = new {{entity}}();
+{{idLine}}
+{{createDefaultsLines}}
+        $this->apply($p, $payload, true);
+
+        $p->saveOrFail();
+
+        return $p;
+    }
+
+    public function update({{entity}} $p, array $payload): {{entity}}
+    {
+        $this->apply($p, $payload, false);
+
+        $p->saveOrFail();
+
+        return $p;
+    }
+
+    public function write(string $opName, array $payload, ?string $id = null): {{entity}}
+    {
+        $isCreate = $opName === '{{opCreate}}';
+        $isUpdate = $opName === '{{opUpdate}}';
+
+        if (!$isCreate && !$isUpdate) {
+            throw new BadRequestHttpException('Unsupported operation: '.$opName);
+        }
+
+        if ($isCreate) {
+            return $this->create($payload);
+        }
+
+        $p = $this->repo->findOrFail((string) $id);
+
+        return $this->update($p, $payload);
+    }
+
+    private function apply({{entity}} $p, array $payload, bool $isCreate): void
+    {
+{{auditLines}}
+{{applyLines}}
+{{#hasFiles}}
+        if (array_key_exists('profiles', $payload)) {
+            $value = $payload['profiles'];
+
+            if ($value === null || trim((string) $value) === '') {
+                $p->profiles = null;
+            } else {
+                $stored = $this->files->writeBase64((string) $value, '{{entitySnake}}-profiles');
+                $p->profiles = $stored->path;
+            }
+        }
+{{/hasFiles}}
+    }
+}

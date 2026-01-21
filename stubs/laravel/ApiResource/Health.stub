@@ -1,0 +1,32 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\ApiResource;
+
+use ApiPlatform\Metadata\Get;
+use ApiPlatform\Metadata\Operation;
+use ApiPlatform\State\ProviderInterface;
+
+#[Get(
+    uriTemplate: '/health',
+    provider: HealthProvider::class,
+    middleware: []
+)]
+final class Health
+{
+    public function __construct(
+        public string $time = '',
+        public string $status = 'ok',
+        public string $message = 'Hello from api',
+    ) {
+    }
+}
+
+final class HealthProvider implements ProviderInterface
+{
+    public function provide(Operation $operation, array $uriVariables = [], array $context = []): Health
+    {
+        return new Health(time: now()->toISOString());
+    }
+}

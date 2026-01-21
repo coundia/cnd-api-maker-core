@@ -1,0 +1,86 @@
+<?php
+
+declare(strict_types=1);
+
+use ApiPlatform\Metadata\UrlGeneratorInterface;
+use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Auth\AuthenticationException;
+use Symfony\Component\Serializer\NameConverter\SnakeCaseToCamelCaseNameConverter;
+
+return [
+    'title' => 'API Platform',
+    'description' => 'My awesome API by Coundia',
+    'version' => '1.0.1',
+    'show_webby' => true,
+
+    'routes' => [
+        'domain' => null,
+    ],
+
+    'resources' => [
+        app_path('Models'),
+        app_path('ApiResource'),
+    ],
+
+    'formats' => [
+        'jsonld' => ['application/ld+json'],
+        'json' => ['application/json'],
+        'jsonopenapi' => ['application/vnd.openapi+json'],
+
+    ],
+
+    'patch_formats' => [
+        'json' => ['application/merge-patch+json'],
+    ],
+
+    'docs_formats' => [
+        'jsonld' => ['application/ld+json'],
+        'jsonopenapi' => ['application/vnd.openapi+json'],
+        'html' => ['text/html'],
+    ],
+
+    'error_formats' => [
+        'jsonproblem' => ['application/problem+json'],
+    ],
+
+    'defaults' => [
+        'pagination_enabled' => true,
+        'pagination_items_per_page' => 30,
+        'pagination_maximum_items_per_page' => 30,
+        'route_prefix' => '/api',
+        'middleware' => ['api'],
+    ],
+
+    'graphql' => [
+        'enabled' => false,
+    ],
+
+    'name_converter' => SnakeCaseToCamelCaseNameConverter::class,
+
+    'exception_to_status' => [
+        AuthenticationException::class => 401,
+        AuthorizationException::class => 403,
+    ],
+
+    'swagger_ui' => [
+        'enabled' => true,
+        'apiKeys' => [
+            'bearerAuth' => [
+                'type' => 'header',
+                'name' => 'Authorization',
+            ],
+            'tenant' => [
+                'type' => 'header',
+                'name' => 'X-Tenant',
+            ],
+        ],
+    ],
+
+    'url_generation_strategy' => UrlGeneratorInterface::ABS_PATH,
+
+    'serializer' => [
+        'hydra_prefix' => false,
+    ],
+
+    'cache' => 'file',
+];

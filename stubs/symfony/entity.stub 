@@ -1,0 +1,89 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{namespace}};
+
+use ApiPlatform\Metadata\ApiResource;
+use ApiPlatform\Metadata\Delete;
+use ApiPlatform\Metadata\Get;
+use ApiPlatform\Metadata\GetCollection;
+use ApiPlatform\Metadata\Link;
+use ApiPlatform\Metadata\Post;
+use ApiPlatform\Metadata\Put;
+use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Serializer\Attribute\Groups;
+use Symfony\Component\Uid\Uuid;
+use {{dtoInputFqn}};
+use {{dtoOutputFqn}};
+use {{collectionProviderFqn}};
+use {{itemProviderFqn}};
+use {{writeProcessorFqn}};
+use {{deleteProcessorFqn}};
+
+#[ORM\Entity(repositoryClass: {{repositoryFqn}}::class)]
+#[ORM\Table(name: '{{table}}')]
+#[ApiResource(
+    operations: [
+        new GetCollection(
+            uriTemplate: '{{uriPrefix}}',
+            output: {{entity}}Output::class,
+            name: '{{opBase}}_list',
+            provider: {{entity}}CollectionProvider::class,
+        ),
+        new Post(
+            uriTemplate: '{{uriPrefix}}',
+            input: {{entity}}Input::class,
+            output: {{entity}}Output::class,
+            name: '{{opBase}}_create',
+            processor: {{entity}}WriteProcessor::class,
+        ),
+        new Get(
+            uriTemplate: '{{uriPrefix}}/{id}',
+            uriVariables: [
+                'id' => new Link(fromClass: {{entity}}::class, identifiers: ['id']),
+            ],
+            requirements: [
+                'id' => '{{idRequirement}}',
+            ],
+            output: {{entity}}Output::class,
+            name: '{{opBase}}_item',
+            provider: {{entity}}ItemProvider::class,
+        ),
+        new Put(
+            uriTemplate: '{{uriPrefix}}/{id}',
+            uriVariables: [
+                'id' => new Link(fromClass: {{entity}}::class, identifiers: ['id']),
+            ],
+            requirements: [
+                'id' => '{{idRequirement}}',
+            ],
+            input: {{entity}}Input::class,
+            output: {{entity}}Output::class,
+            name: '{{opBase}}_update',
+            processor: {{entity}}WriteProcessor::class,
+        ),
+        new Delete(
+            uriTemplate: '{{uriPrefix}}/{id}',
+            uriVariables: [
+                'id' => new Link(fromClass: {{entity}}::class, identifiers: ['id']),
+            ],
+            requirements: [
+                'id' => '{{idRequirement}}',
+            ],
+            output: false,
+            name: '{{opBase}}_delete',
+            processor: {{entity}}DeleteProcessor::class,
+        ),
+    ],
+    normalizationContext: ['groups' => ['{{groupsRead}}']],
+    denormalizationContext: ['groups' => ['{{groupsWrite}}']],
+)]
+class {{entity}}
+{
+{{idProperty}}
+
+{{properties}}
+
+{{gettersSetters}}
+}

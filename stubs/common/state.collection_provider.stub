@@ -1,0 +1,16 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{namespace}};
+
+use ApiPlatform\Metadata\Operation;
+use ApiPlatform\State\ProviderInterface;
+
+final class {{entity}}CollectionProvider implements ProviderInterface
+{
+    public function provide(Operation $operation, array $uriVariables = [], array $context = []): array|null|object
+    {
+        return [];
+    }
+}

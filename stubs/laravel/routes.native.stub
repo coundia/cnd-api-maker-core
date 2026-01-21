@@ -1,0 +1,12 @@
+<?php
+
+declare(strict_types=1);
+
+use Illuminate\Support\Facades\Route;
+use {{controllerFqn}};
+
+Route::middleware({{middlewares}})
+    ->prefix('{{routePrefix}}')
+    ->group(function (): void {
+        Route::apiResource('{{resourcePath}}', {{controllerClass}}::class);
+    });

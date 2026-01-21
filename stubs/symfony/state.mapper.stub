@@ -1,0 +1,36 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\State\{{entity}};
+
+use App\Dto\{{entity}}\{{entity}}Input;
+use App\Dto\{{entity}}\{{entity}}Output;
+use App\Entity\{{entity}};
+{{base64Uses}}
+
+final readonly class {{entity}}Mapper
+{
+    public function __construct(
+        private {{entity}}PayloadResolver $resolver{{base64CtorArg}}
+    ) {
+    }
+
+    public function toOutput({{entity}} $entity): {{entity}}Output
+    {
+        $dto = new {{entity}}Output();
+
+{{mapperAssignments}}
+
+        return $dto;
+    }
+
+    public function applyInput({{entity}} $entity, {{entity}}Input $input): {{entity}}
+    {
+        $resolver = $this->resolver;
+
+{{applyAssignments}}
+
+        return $entity;
+    }
+}

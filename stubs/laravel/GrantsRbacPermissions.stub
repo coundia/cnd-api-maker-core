@@ -1,0 +1,69 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Security\Rbac;
+
+use App\Models\Permission;
+use App\Models\Role;
+use App\Models\User;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+
+trait GrantsRbacPermissions
+{
+    public function grantPermissions(User $user, array $permissionCodes, array $roleAttrs = []): void
+    {
+        $now = Carbon::now();
+
+        $userId = (int) $user->getKey();
+
+        $roleCode = strtoupper(trim((string) ($roleAttrs['code'] ?? 'ROLE_TEST')));
+        if ($roleCode === '') {
+            $roleCode = 'ROLE_TEST';
+        }
+
+        $role = Role::query()
+            ->where('code', $roleCode)
+            ->first();
+
+        if (!$role instanceof Role) {
+            $role = Role::factory()->create([
+                'code' => $roleCode,
+                'label' => (string) ($roleAttrs['label'] ?? 'Test Role'),
+                'description' => array_key_exists('description', $roleAttrs) ? (string) $roleAttrs['description'] : null,
+                'color' => (string) ($roleAttrs['color'] ?? '#000000'),
+                'active' => (bool) ($roleAttrs['active'] ?? true),
+            ]);
+        }
+
+        foreach ($permissionCodes as $code) {
+            $permCode = strtoupper(trim((string) $code));
+            if ($permCode === '') {
+                continue;
+            }
+
+            $permission = Permission::query()
+                ->where('code', $permCode)
+                ->whereNull('deleted_at')
+                ->first()
+                ?? Permission::factory()->create([
+                'code' => $permCode
+                ]);
+
+            DB::table('role_permissions')->updateOrInsert(
+                ['role_id' => (string) $role->getKey(), 'permission_id' => (string) $permission->getKey()],
+                ['id' => (string) Str::uuid(), 'created_at' => $now, 'updated_at' => $now]
+            );
+
+            Cache::forget('perm:'.$userId.':'.$permCode);
+        }
+
+        DB::table('user_roles')->updateOrInsert(
+            [ 'user_id' => $userId, 'role_id' => (string) $role->getKey()],
+            ['id' => (string) Str::uuid(), 'created_at' => $now, 'updated_at' => $now]
+        );
+    }
+}

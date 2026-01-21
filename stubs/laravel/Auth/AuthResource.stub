@@ -1,0 +1,38 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Models;
+
+use ApiPlatform\Metadata\ApiResource;
+use ApiPlatform\Metadata\Post;
+use App\Dto\Auth\LoginInput;
+use App\Dto\Auth\LoginOutput;
+use App\Dto\Auth\RegisterInput;
+use App\Dto\Auth\RegisterOutput;
+use App\State\Auth\LoginProcessor;
+use App\State\Auth\RegisterProcessor;
+
+#[ApiResource(
+    operations: [
+        new Post(
+            uriTemplate: '/auth/register',
+            security: 'true',
+            input: RegisterInput::class,
+            output: RegisterOutput::class,
+            processor: RegisterProcessor::class
+        ),
+        new Post(
+            uriTemplate: '/auth/login',
+            security: 'true',
+            input: LoginInput::class,
+            output: LoginOutput::class,
+            processor: LoginProcessor::class
+        ),
+    ],
+)]
+final
+// API Platform entrypoint for authentication (register/login) using DTOs and processors.
+class AuthResource
+{
+}

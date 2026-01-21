@@ -1,0 +1,27 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Entity\Traits;
+
+use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Serializer\Attribute\Groups;
+
+trait AuditTrait
+{
+	#[ORM\Column(type: 'string', length: 64, nullable: true)]
+	#[Groups(['audit:read', 'audit:write'])]
+	public ?string $createdBy = null;
+
+	#[ORM\Column(type: 'string', length: 64, nullable: true)]
+	#[Groups(['audit:read', 'audit:write'])]
+	public ?string $updatedBy = null;
+
+	#[ORM\Column(type: 'datetime_immutable', nullable: true)]
+	#[Groups(['audit:read'])]
+	public ?\DateTimeImmutable $createdAt = null;
+
+	#[ORM\Column(type: 'datetime_immutable', nullable: true)]
+	#[Groups(['audit:read'])]
+	public ?\DateTimeImmutable $updatedAt = null;
+}

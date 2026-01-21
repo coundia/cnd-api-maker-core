@@ -1,0 +1,42 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{namespace}};
+
+use {{modelFqn}};
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Support\Carbon;
+
+final class {{entity}}Repository
+{
+    public function baseQuery(): Builder
+    {
+        return {{entity}}::query()->orderByDesc('created_at');
+    }
+
+    public function findOrFail(string $id): {{entity}}
+    {
+        $p = $this->baseQuery()->whereKey($id)->first();
+
+        if (!$p instanceof {{entity}}) {
+            throw new ModelNotFoundException('{{entity}} not found');
+        }
+
+        return $p;
+    }
+
+    public function parseDateOrNull(?string $value): ?Carbon
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        try {
+            return Carbon::parse($value);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+}

@@ -1,0 +1,7 @@
+<?php
+
+return [
+    App\Providers\AppServiceProvider::class,
+    Illuminate\Foundation\Providers\FoundationServiceProvider::class,
+    App\Providers\TenancyServiceProvider::class,
+];

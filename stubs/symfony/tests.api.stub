@@ -1,0 +1,210 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Tests\ApiResource;
+
+use App\Tests\Shared\BaseWebTestCase;
+use Symfony\Component\HttpFoundation\Response;
+
+final class {{entity}}ApiTest extends BaseWebTestCase
+{
+    public function test_it_should_list_{{entitySnake}}(): void
+    {
+{{authLine}}
+        $this->get('{{basePath}}');
+
+        $this->assertResponseStatusCodeSame(Response::HTTP_OK);
+    }
+
+    public function test_it_should_create_{{entitySnake}}(): void
+    {
+{{authLine}}
+        $uuid = bin2hex(random_bytes(8));
+
+{{relationsSetupCreate}}
+
+        $payload = $this->withNullsRemoved({{createPayload}});
+
+        $this->post('{{basePath}}', $payload);
+
+        $this->assertResponseStatusCodeSame(Response::HTTP_CREATED);
+
+        $created = $this->getArrayResponse();
+        $this->assertHasAnyId($created);
+
+        $this->assertPayloadApplied($created, $payload);
+    }
+
+    public function test_it_should_get_item_{{entitySnake}}(): void
+    {
+{{authLine}}
+        $uuid = bin2hex(random_bytes(8));
+
+{{relationsSetupCreate}}
+
+        $payload = $this->withNullsRemoved({{createPayload}});
+
+        $this->post('{{basePath}}', $payload);
+        $this->assertResponseStatusCodeSame(Response::HTTP_CREATED);
+
+        $created = $this->getArrayResponse();
+
+        $id = $created['id'] ?? null;
+        if (!$id && isset($created['@id'])) {
+            $id = basename((string) $created['@id']);
+        }
+        $this->assertNotEmpty($id);
+
+        $this->get('{{basePath}}/'.$id);
+        $this->assertResponseIsSuccessful();
+
+        $item = $this->getArrayResponse();
+        $this->assertHasAnyId($item);
+
+        $this->assertPayloadApplied($item, $payload);
+    }
+
+    public function test_it_should_update_{{entitySnake}}(): void
+    {
+{{authLine}}
+        $uuid = bin2hex(random_bytes(8));
+
+{{relationsSetupCreate}}
+
+        $createPayload = $this->withNullsRemoved({{createPayload}});
+
+        $this->post('{{basePath}}', $createPayload);
+        $this->assertResponseStatusCodeSame(Response::HTTP_CREATED);
+
+        $created = $this->getArrayResponse();
+        $id = $created['id'] ?? null;
+        if (!$id && isset($created['@id'])) {
+            $id = basename((string) $created['@id']);
+        }
+        $this->assertNotEmpty($id);
+
+        $uuid = bin2hex(random_bytes(8));
+
+{{relationsSetupUpdate}}
+
+        $updatePayload = $this->withNullsRemoved({{updatePayload}});
+
+        $this->put('{{basePath}}/'.$id, $updatePayload);
+        $this->assertResponseIsSuccessful();
+
+        $updated = $this->getArrayResponse();
+        $this->assertHasAnyId($updated);
+
+        $this->assertPayloadApplied($updated, $updatePayload);
+    }
+
+    public function test_it_should_delete_{{entitySnake}}(): void
+    {
+{{authLine}}
+        $uuid = bin2hex(random_bytes(8));
+
+{{relationsSetupCreate}}
+
+        $payload = $this->withNullsRemoved({{createPayload}});
+
+        $this->post('{{basePath}}', $payload);
+        $this->assertResponseStatusCodeSame(Response::HTTP_CREATED);
+
+        $created = $this->getArrayResponse();
+
+        $id = $created['id'] ?? null;
+        if (!$id && isset($created['@id'])) {
+            $id = basename((string) $created['@id']);
+        }
+        $this->assertNotEmpty($id);
+
+        $this->delete('{{basePath}}/'.$id);
+
+        $this->assertTrue(
+            in_array($this->response?->getStatusCode(), [Response::HTTP_NO_CONTENT, Response::HTTP_OK], true)
+        );
+
+{{postDeleteChecks}}
+    }
+
+    public function test_it_should_remove_nulls_from_payload_{{entitySnake}}(): void
+    {
+        $payload = $this->withNullsRemoved(['a' => null, 'b' => 'x', 'c' => 0]);
+        $this->assertSame(['b' => 'x', 'c' => 0], $payload);
+    }
+
+    private function withNullsRemoved(array $payload): array
+    {
+        $out = [];
+        foreach ($payload as $k => $v) {
+            if ($v === null) {
+                continue;
+            }
+            $out[$k] = $v;
+        }
+        return $out;
+    }
+
+    private function assertPayloadApplied(array $actual, array $payload): void
+    {
+        foreach ($payload as $k => $expected) {
+            if (!array_key_exists($k, $actual)) {
+                continue;
+            }
+
+            $this->assertFieldEquals($k, $expected, $actual[$k]);
+        }
+    }
+
+    private function assertHasAnyId(array $data): void
+    {
+        $id = $data['id'] ?? null;
+
+        if (!$id && isset($data['@id'])) {
+            $id = basename((string) $data['@id']);
+        }
+
+        $this->assertNotEmpty($id);
+    }
+
+    private function assertFieldEquals(string $field, mixed $expected, mixed $actual): void
+    {
+        if (is_array($expected)) {
+            $this->assertIsArray($actual);
+            $this->assertNotEmpty($actual);
+            return;
+        }
+
+        if (is_bool($expected)) {
+            $this->assertIsBool($actual);
+            $this->assertSame($expected, $actual);
+            return;
+        }
+
+        if (is_int($expected)) {
+            $this->assertTrue(is_int($actual) || ctype_digit((string) $actual));
+            $this->assertSame((int) $expected, (int) $actual);
+            return;
+        }
+
+        if (is_float($expected)) {
+            $this->assertTrue(is_float($actual) || is_numeric($actual));
+            $this->assertSame((float) $expected, (float) $actual);
+            return;
+        }
+
+        if (is_string($expected) && $this->looksLikeBase64DataUrl($expected)) {
+            $this->assertIsString($actual);
+            $this->assertNotEmpty($actual);
+            return;
+        }
+
+        $this->assertSame((string) $expected, (string) $actual, 'Field: '.$field);
+    }
+
+    private function looksLikeBase64DataUrl(string $v): bool
+    {
+        return str_starts_with($v, 'data:') && str_contains($v, ';base64,');
+    }
+}

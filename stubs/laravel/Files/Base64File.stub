@@ -1,0 +1,61 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Files;
+
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
+
+final class Base64File
+{
+    public function __construct(
+        public readonly string $mimeType,
+        public readonly string $content
+    ) {
+    }
+
+    public static function parse(string $value): self
+    {
+        $value = trim($value);
+
+        if ($value === '') {
+            throw new BadRequestHttpException('Empty file payload');
+        }
+
+        if (str_starts_with($value, 'data:')) {
+            $parts = explode(',', $value, 2);
+            if (count($parts) !== 2) {
+                throw new BadRequestHttpException('Invalid data URI');
+            }
+
+            $meta = $parts[0];
+            $b64 = $parts[1];
+
+            if (!str_contains($meta, ';base64')) {
+                throw new BadRequestHttpException('Invalid data URI encoding');
+            }
+
+            $mime = substr($meta, 5);
+            $mime = explode(';', $mime, 2)[0] ?? '';
+            $mime = trim($mime);
+
+            if ($mime === '') {
+                throw new BadRequestHttpException('Missing mime type');
+            }
+
+            $raw = base64_decode($b64, true);
+            if ($raw === false) {
+                throw new BadRequestHttpException('Invalid base64 payload');
+            }
+
+            return new self($mime, $raw);
+        }
+
+        $raw = base64_decode($value, true);
+        if ($raw === false) {
+            throw new BadRequestHttpException('Invalid base64 payload');
+        }
+
+        return new self('application/octet-stream', $raw);
+    }
+}

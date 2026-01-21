@@ -1,0 +1,66 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{namespace}};
+
+use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
+use {{entityFqn}};
+
+final readonly class {{entity}}Writer
+{
+    public function __construct(
+        private EntityManagerInterface $em,
+        private {{entity}}Repository $repo,
+    ) {
+    }
+
+    public function create(array $payload): {{entity}}
+    {
+{{requireLines}}
+
+        $p = new {{entity}}();
+
+{{createDefaultsLines}}
+        $this->apply($p, $payload, true);
+
+        $this->em->persist($p);
+        $this->em->flush();
+
+        return $p;
+    }
+
+    public function update({{entity}} $p, array $payload): {{entity}}
+    {
+        $this->apply($p, $payload, false);
+
+        $this->em->flush();
+
+        return $p;
+    }
+
+    public function write(string $opName, array $payload, ?string $id = null): {{entity}}
+    {
+        $isCreate = $opName === '{{opCreate}}';
+        $isUpdate = $opName === '{{opUpdate}}';
+
+        if (!$isCreate && !$isUpdate) {
+            throw new BadRequestHttpException('Unsupported operation: '.$opName);
+        }
+
+        if ($isCreate) {
+            return $this->create($payload);
+        }
+
+        $p = $this->repo->findOrFail((string) $id);
+
+        return $this->update($p, $payload);
+    }
+
+    private function apply({{entity}} $p, array $payload, bool $isCreate): void
+    {
+{{auditLines}}
+{{applyLines}}
+    }
+}

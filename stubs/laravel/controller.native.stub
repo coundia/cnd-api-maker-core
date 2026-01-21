@@ -1,0 +1,64 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{namespace}};
+
+use {{modelFqn}};
+use {{storeRequestFqn}};
+use {{updateRequestFqn}};
+use {{resourceFqn}};
+{{securityUses}}use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Routing\Controller;
+
+final class {{entity}}Controller extends Controller
+{
+
+{{securityController}}
+public function index(): AnonymousResourceCollection
+    {
+{{permRequireList}}{{tenantResolveLine}}
+        $q = {{entity}}::query();
+{{tenantWhereIndex}}
+{{filtersApply}}
+        return {{resourceClass}}::collection($q->paginate(perPage: {{itemsPerPageDefault}}));
+    }
+
+    public function store({{storeRequestClass}} $request): JsonResponse
+    {
+{{permRequireCreate}}{{tenantResolveLine}}
+        $payload = $request->validated();
+{{tenantSetOnCreate}}{{createDefaultsLines}}
+        $p = {{entity}}::query()->create($payload);
+
+        return response()->json(new {{resourceClass}}($p), 201);
+    }
+
+    public function show(string $id): JsonResponse
+    {
+{{permRequireView}}{{tenantResolveLine}}
+{{findOneLine}}
+        return response()->json(new {{resourceClass}}($p));
+    }
+
+    public function update({{updateRequestClass}} $request, string $id): JsonResponse
+    {
+{{permRequireUpdate}}{{tenantResolveLine}}
+{{findOneLine}}
+        $payload = $request->validated();
+{{applyLines}}
+        $p->fill($payload);
+        $p->save();
+
+        return response()->json(new {{resourceClass}}($p));
+    }
+
+    public function destroy(string $id): JsonResponse
+    {
+{{permRequireDelete}}{{tenantResolveLine}}
+{{findOneLine}}
+{{softDeleteOrDeleteLine}}
+        return response()->json(null, 204);
+    }
+}

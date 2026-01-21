@@ -1,0 +1,21 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{namespace}};
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+{{usesHasUuids}}{{usesSoftDeletes}}{{usesTenantOwned}}
+
+final class {{entity}} extends Model
+{
+    use HasFactory;
+{{traitHasUuids}}{{traitSoftDeletes}}{{traitTenantOwned}}
+    protected $table = '{{table}}';
+
+    protected $fillable = [
+{{fillable}}
+    ];
+{{hiddenBlock}}{{castsBlock}}
+}

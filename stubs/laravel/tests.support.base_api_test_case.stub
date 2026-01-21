@@ -1,0 +1,182 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Tests\Support;
+
+use App\Models\Tenant;
+use App\Models\User;
+use App\Tenancy\TenantContext;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\App;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Illuminate\Testing\TestResponse;
+use Tests\TestCase;
+
+abstract class BaseApiTestCase extends TestCase
+{
+    use RefreshDatabase;
+
+    protected ?string $token = null;
+    protected ?object $user = null;
+
+    protected function createUser(array $attrs = []): User
+    {
+        return User::query()->create(array_merge([
+            'name' => 'User',
+            'email' => 'user_'.Str::uuid().'@test.local',
+            'password' => 'password',
+        ], $attrs));
+    }
+
+    protected function createTenant(array $attrs = []): Tenant
+    {
+        return Tenant::query()->create(array_merge([
+            'id' => (string) Str::uuid(),
+            'name' => 'Tenant',
+            'slug' => 'tenant-'.Str::lower(Str::random(8)),
+        ], $attrs));
+    }
+
+
+
+    protected function enableModuleForTenant(Tenant $tenant, string $moduleCode): void
+    {
+        DB::table('tenant_modules')->updateOrInsert(
+            ['tenant_id' => (string) $tenant->getKey(), 'module_code' => $moduleCode],
+            [
+                'id' => (string) Str::uuid(),
+                'enabled' => 1,
+                'read_only' => 0,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]
+        );
+    }
+
+    protected function setTenantContext(Tenant $tenant): void
+    {
+        App::make(TenantContext::class)->setId($tenant->getKey());
+    }
+
+    protected function tenantHeaders(Tenant $tenant): array
+       {
+           $slug = (string) $tenant->slug;
+
+           return [
+               'X-Tenant' => $slug,
+               'X-Tenant-Id' => $slug,
+           ];
+       }
+
+    protected function apiLdGet(string $uri, array $headers = [], bool $ld = true): TestResponse
+    {
+        return $this->apiLdCall('GET', $uri, null, $this->mergeHeaders($headers, $this->defaultHeaders($ld)));
+    }
+
+    protected function apiLdPost(string $uri, array $payload, array $headers = [], bool $ld = true): TestResponse
+    {
+        return $this->apiLdCall('POST', $uri, $payload, $this->mergeHeaders($headers, $this->defaultHeaders($ld)));
+    }
+
+    protected function apiLdPut(string $uri, array $payload, array $headers = [], bool $ld = true): TestResponse
+    {
+        return $this->apiLdCall('PUT', $uri, $payload, $this->mergeHeaders($headers, $this->defaultHeaders($ld)));
+    }
+
+    protected function apiLdDelete(string $uri, array $headers = [], bool $ld = true): TestResponse
+    {
+        return $this->apiLdCall('DELETE', $uri, null, $this->mergeHeaders($headers, $this->defaultHeaders($ld)));
+    }
+
+    protected function apiLdCall(string $method, string $uri, ?array $payload, array $headers = []): TestResponse
+    {
+        $this->bootstrapTenantContextFromHeaders($headers);
+
+        $server = $this->toServerHeaders($headers);
+
+        $content = $payload === null ? null : json_encode($payload, JSON_THROW_ON_ERROR);
+
+        $uri = $this->api($uri);
+
+        $response = $this->call($method, $uri, [], [], [], $server, $content);
+
+        return TestResponse::fromBaseResponse($response);
+    }
+
+    protected function api(string $path): string
+    {
+        $prefix = (string) config('api-platform.path_prefix', '/api');
+        $prefix = '/'.trim($prefix, '/');
+
+        $path = '/'.ltrim($path, '/');
+
+        return rtrim($prefix, '/').$path;
+    }
+
+    protected function defaultHeaders(bool $ld): array
+    {
+        $headers = [];
+
+        if ($ld) {
+            $headers['Accept'] = 'application/ld+json';
+            $headers['Content-Type'] = 'application/ld+json';
+        }
+
+        if ($this->token !== null && $this->token !== '') {
+            $headers['Authorization'] = 'Bearer '.$this->token;
+        }
+
+        return $headers;
+    }
+
+    protected function mergeHeaders(array $headers, array $defaults): array
+    {
+        return array_merge($defaults, $headers);
+    }
+
+    private function bootstrapTenantContextFromHeaders(array $headers): void
+    {
+        $tenantId = (string) ($headers['X-Tenant'] ?? $headers['X-Tenant-Id'] ?? '');
+
+        if ($tenantId === '') {
+            return;
+        }
+
+        $tenant = Tenant::query()->find($tenantId);
+
+        if ($tenant instanceof Tenant) {
+            $this->setTenantContext($tenant);
+        }
+    }
+
+    private function toServerHeaders(array $headers): array
+    {
+        $server = [];
+
+        foreach ($headers as $k => $v) {
+            $key = (string) $k;
+            $val = (string) $v;
+
+            if (strcasecmp($key, 'Content-Type') === 0) {
+                $server['CONTENT_TYPE'] = $val;
+                continue;
+            }
+
+            if (strcasecmp($key, 'Accept') === 0) {
+                $server['HTTP_ACCEPT'] = $val;
+                continue;
+            }
+
+            if (strcasecmp($key, 'Authorization') === 0) {
+                $server['HTTP_AUTHORIZATION'] = $val;
+                continue;
+            }
+
+            $server['HTTP_'.strtoupper(str_replace('-', '_', $key))] = $val;
+        }
+
+        return $server;
+    }
+}

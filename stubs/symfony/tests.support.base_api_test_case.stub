@@ -1,0 +1,176 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Tests\Shared;
+
+use App\Security\DataFixtures\UserFixtures;
+use App\Security\Entity\User;
+use App\Security\Factory\UserFactory;
+use App\Tests\Shared\Assertions\ResponseAssertions;
+use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use Symfony\Component\HttpFoundation\Response;
+use Zenstruck\Foundry\Test\Factories;
+use function Zenstruck\Foundry\faker;
+
+class BaseWebTestCase extends WebTestCase
+{
+    use ResponseAssertions;
+    use Factories;
+
+    protected \Symfony\Bundle\FrameworkBundle\KernelBrowser $client;
+    protected ?Response $response = null;
+    protected ?string $token = null;
+    protected ?User $user = null;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        static::ensureKernelShutdown();
+        $this->client = static::createClient();
+        $this->response = null;
+
+{{authSetup}}
+
+        $dir = sys_get_temp_dir().'/var/vl-api-uploads-private';
+
+        $_ENV['UPLOADS_PRIVATE_DIR'] = $dir;
+        $_SERVER['UPLOADS_PRIVATE_DIR'] = $dir;
+
+        if (!is_dir($dir)) {
+            mkdir($dir, 0777, true);
+        }
+    }
+
+{{loginMethod}}
+
+    protected function post(string $uri, array $data, ?array $headers = null): static
+    {
+        $this->client->request(
+            'POST',
+            $uri,
+            [],
+            [],
+            $this->getDefaultHeaders($headers),
+            json_encode($data, JSON_THROW_ON_ERROR)
+        );
+
+        $this->response = $this->client->getResponse();
+
+        return $this;
+    }
+
+    protected function get(string $uri, ?array $headers = null): static
+    {
+        $this->client->request(
+            'GET',
+            $uri,
+            [],
+            [],
+            $this->getDefaultHeaders($headers)
+        );
+
+        $this->response = $this->client->getResponse();
+
+        return $this;
+    }
+
+    protected function put(string $uri, array $data, ?array $headers = null): static
+    {
+        $this->client->request(
+            'PUT',
+            $uri,
+            [],
+            [],
+            $this->getDefaultHeaders($headers),
+            json_encode($data, JSON_THROW_ON_ERROR)
+        );
+
+        $this->response = $this->client->getResponse();
+
+        return $this;
+    }
+
+    protected function delete(string $uri, ?array $headers = null): static
+    {
+        $this->client->request(
+            'DELETE',
+            $uri,
+            [],
+            [],
+            $this->getDefaultHeaders($headers)
+        );
+
+        $this->response = $this->client->getResponse();
+
+        return $this;
+    }
+
+    private function getDefaultHeaders(?array $headers = null): array
+    {
+        $default = [
+            'CONTENT_TYPE' => 'application/json',
+            'HTTP_ACCEPT' => 'application/ld+json',
+        ];
+
+{{authHeaderLine}}
+
+        return array_merge($default, $headers ?? []);
+    }
+
+    protected function getContent(): array
+    {
+        if (!$this->response) {
+            throw new \RuntimeException('No response available.');
+        }
+
+        $raw = (string) $this->response->getContent();
+        if ($raw === '') {
+            return [];
+        }
+
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded)) {
+            throw new \RuntimeException('Invalid JSON response.');
+        }
+
+        return $decoded;
+    }
+
+    protected function getArrayResponse(): array
+    {
+        return $this->getContent();
+    }
+
+    protected function user(): User
+    {
+        if (!$this->user) {
+            throw new \RuntimeException('No current user available.');
+        }
+
+        return $this->user;
+    }
+
+{{authHelpers}}
+
+	protected function idOf(object $entity, string $prefixApi =  ""): string
+    {
+  		  $id = "";
+        if (method_exists($entity, 'getId')) {
+            $id = $entity->getId();
+            if (is_object($id) && method_exists($id, 'toRfc4122')) {
+                return (string) $id->toRfc4122();
+            }
+        }
+
+        if (property_exists($entity, 'id')) {
+            $id = $entity->id;
+            if (is_object($id) && method_exists($id, 'toRfc4122')) {
+                return (string) $id->toRfc4122();
+            }
+        }
+
+        return  $prefixApi.$id;
+    }
+}

@@ -1,0 +1,37 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Tenant;
+
+use Symfony\Component\HttpFoundation\RequestStack;
+use Symfony\Component\Uid\Uuid;
+
+final readonly class TenantContext
+{
+    public function __construct(
+        private RequestStack $requestStack
+    ) {
+    }
+
+    public function tenantIdOrNull(): ?Uuid
+    {
+        $req = $this->requestStack->getCurrentRequest();
+        if ($req === null) {
+            return null;
+        }
+
+        $raw = (string) ($req->headers->get('X-Tenant-Id') ?? '');
+        $raw = trim($raw);
+
+        if ($raw === '') {
+            return null;
+        }
+
+        try {
+            return Uuid::fromString($raw);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+}

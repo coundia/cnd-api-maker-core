@@ -1,0 +1,104 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{namespace}};
+
+use {{inputFqn}};
+use Illuminate\Http\Request;
+
+final readonly class {{entity}}PayloadResolver
+{
+    public function __construct(
+        private Request $request,
+    ) {
+    }
+
+    public function resolve({{entity}}Input $data): array
+    {
+        $attrs = $this->extractAttributes();
+        $payload = [];
+
+{{payloadLines}}
+
+        return $payload;
+    }
+
+    private function has(mixed $dtoValue, array $attrs, string ...$keys): bool
+    {
+        if ($dtoValue !== null) {
+            return true;
+        }
+
+        foreach ($keys as $k) {
+            if (array_key_exists($k, $attrs)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function extractAttributes(): array
+    {
+        $payload = $this->request->all();
+
+        if (is_array($payload) && isset($payload['data']) && is_array($payload['data'])) {
+            $data = $payload['data'];
+            $attrs = $data['attributes'] ?? null;
+
+            if (is_array($attrs)) {
+                return $attrs;
+            }
+        }
+
+        return is_array($payload) ? $payload : [];
+    }
+
+    private function stringOrNull(mixed $v): ?string
+    {
+        if ($v === null) {
+            return null;
+        }
+
+        if (is_string($v)) {
+            $vv = trim($v);
+            return $vv === '' ? null : $vv;
+        }
+
+        if (is_numeric($v)) {
+            return (string) $v;
+        }
+
+        return null;
+    }
+
+    private function boolOrNull(mixed $v): ?bool
+    {
+        if ($v === null) {
+            return null;
+        }
+
+        if (is_bool($v)) {
+            return $v;
+        }
+
+        if (is_int($v)) {
+            return $v === 1;
+        }
+
+        if (is_string($v)) {
+            $vv = strtolower(trim($v));
+
+            if (in_array($vv, ['1', 'true', 'yes', 'on'], true)) {
+                return true;
+            }
+
+            if (in_array($vv, ['0', 'false', 'no', 'off'], true)) {
+                return false;
+            }
+        }
+
+        return null;
+    }
+}

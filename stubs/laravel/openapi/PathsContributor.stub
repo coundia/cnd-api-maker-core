@@ -1,0 +1,12 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{namespace}};
+
+use ApiPlatform\OpenApi\Model\Paths;
+
+interface PathsContributor
+{
+    public function add(Paths $paths): void;
+}

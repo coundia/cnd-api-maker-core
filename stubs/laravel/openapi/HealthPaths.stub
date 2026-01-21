@@ -1,0 +1,44 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{namespace}};
+
+use ApiPlatform\OpenApi\Model;
+use ApiPlatform\OpenApi\Model\Paths;
+use App\OpenApi\PathsContributor;
+
+final class HealthPaths implements PathsContributor
+{
+    public function add(Paths $paths): void
+    {
+        $paths->addPath('/api/v1/health', $this->path());
+    }
+
+    private function path(): Model\PathItem
+    {
+        $schema = new Model\Schema();
+        $schema['type'] = 'object';
+        $schema['properties'] = new \ArrayObject([
+            'status' => new \ArrayObject(['type' => 'string', 'example' => 'ok']),
+            'timestamp' => new \ArrayObject(['type' => 'string', 'example' => '2026-01-17T12:00:00+00:00']),
+        ]);
+        $schema['required'] = ['status'];
+
+        return new Model\PathItem(
+            get: new Model\Operation(
+                operationId: 'getHealth',
+                tags: ['Health'],
+                summary: 'Health check',
+                responses: [
+                    '200' => new Model\Response(
+                        description: 'OK',
+                        content: new \ArrayObject([
+                            'application/json' => new Model\MediaType(schema: $schema),
+                        ])
+                    ),
+                ]
+            )
+        );
+    }
+}

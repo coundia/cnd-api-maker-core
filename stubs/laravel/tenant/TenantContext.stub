@@ -1,0 +1,42 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Tenancy;
+
+final class TenantContext
+{
+    private ?string $tenantId = null;
+    private ?string $tenantSlug = null;
+
+    public function setId(?string $tenantId): void
+    {
+        $this->tenantId = $tenantId && trim($tenantId) !== '' ? $tenantId : null;
+    }
+
+    public function setSlug(?string $slug): void
+    {
+        $this->tenantSlug = $slug && trim($slug) !== '' ? $slug : null;
+    }
+
+    public function id(): ?string
+    {
+        return $this->tenantId;
+    }
+
+    public function slug(): ?string
+    {
+        return $this->tenantSlug;
+    }
+
+    public function requireId(): string
+    {
+    //check Missing tenant context
+    {{#hasTenant}}
+        if ($this->tenantId === null) {
+            abort(400, 'Missing tenant context');
+        }
+    {{/hasTenant}}
+        return $this->tenantId;
+    }
+}

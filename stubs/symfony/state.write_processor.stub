@@ -1,0 +1,44 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\State\{{entity}};
+
+use ApiPlatform\Metadata\Operation;
+use ApiPlatform\State\ProcessorInterface;
+use App\Entity\{{entity}};
+use App\Repository\{{entity}}Repository;
+use Doctrine\ORM\EntityManagerInterface;
+{{base64Uses}}
+
+final readonly class {{entity}}WriteProcessor implements ProcessorInterface
+{
+	public function __construct(
+		private EntityManagerInterface $em,
+		private {{entity}}Repository $repository,
+		private {{entity}}Mapper $mapper{{base64CtorArg}}
+	) {
+	}
+
+	public function process(mixed $data, Operation $operation, array $uriVariables = [], array $context = []): mixed
+	{
+		$id = $uriVariables['id'] ?? null;
+
+		$entity = null;
+		if ($id !== null) {
+			$entity = {{repoFindOneCall}};
+		}
+
+		if ($entity === null) {
+			$entity = new {{entity}}();
+			$this->em->persist($entity);
+		}
+
+{{auditTouchWrite}}
+		$this->mapper->applyInput($entity, $data{{base64ApplyArg}});
+
+		$this->em->flush();
+
+		return $this->mapper->toOutput($entity);
+	}
+}

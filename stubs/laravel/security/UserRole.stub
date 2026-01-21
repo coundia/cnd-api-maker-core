@@ -1,0 +1,119 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Models;
+
+use ApiPlatform\Metadata\ApiProperty;
+use ApiPlatform\Metadata\ApiResource;
+use ApiPlatform\Metadata\Delete;
+use ApiPlatform\Metadata\Get;
+use ApiPlatform\Metadata\GetCollection;
+use ApiPlatform\Metadata\Link;
+use ApiPlatform\Metadata\Post;
+use ApiPlatform\Metadata\Put;
+use App\Dto\UserRole\UserRoleInput;
+use App\State\UserRole\UserRoleCollectionProvider;
+use App\State\UserRole\UserRoleDeleteProcessor;
+use App\State\UserRole\UserRoleItemProvider;
+use App\State\UserRole\UserRoleWriteProcessor;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Symfony\Component\Serializer\Attribute\Groups;
+
+use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Models\Concerns\TenantOwned;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+#[ApiResource(
+    operations: [
+        new GetCollection(
+            uriTemplate: '/v1/user_roles',
+            name: 'user_role_list',
+            provider: UserRoleCollectionProvider::class,
+        ),
+        new Post(
+            uriTemplate: '/v1/user_roles',
+            input: UserRoleInput::class,
+            name: 'user_role_create',
+            processor: UserRoleWriteProcessor::class,
+        ),
+        new Get(
+            uriTemplate: '/v1/user_roles/{id}',
+            uriVariables: [
+                'id' => new Link(fromClass: UserRole::class, identifiers: ['id']),
+            ],
+            requirements: [
+                'id' => '[0-9a-fA-F-]{36}',
+            ],
+            name: 'user_role_item',
+            provider: UserRoleItemProvider::class,
+        ),
+        new Put(
+            uriTemplate: '/v1/user_roles/{id}',
+            uriVariables: [
+                'id' => new Link(fromClass: UserRole::class, identifiers: ['id']),
+            ],
+            requirements: [
+                'id' => '[0-9a-fA-F-]{36}',
+            ],
+            input: UserRoleInput::class,
+            name: 'user_role_update',
+            processor: UserRoleWriteProcessor::class,
+        ),
+        new Delete(
+            uriTemplate: '/v1/user_roles/{id}',
+            uriVariables: [
+                'id' => new Link(fromClass: UserRole::class, identifiers: ['id']),
+            ],
+            requirements: [
+                'id' => '[0-9a-fA-F-]{36}',
+            ],
+            output: false,
+            name: 'user_role_delete',
+            processor: UserRoleDeleteProcessor::class,
+        ),
+
+    ],
+    normalizationContext: ['groups' => ['user_role:read']],
+    denormalizationContext: ['groups' => ['user_role:write']],
+)]
+
+#[ApiProperty(property: 'id', serialize: new Groups(['user_role:read']))]
+#[ApiProperty(property: 'userId', serialize: new Groups(['user_role:read','user_role:write']))]
+#[ApiProperty(property: 'description', serialize: new Groups(['user_role:read','user_role:write']))]
+#[ApiProperty(property: 'role', serialize: new Groups(['user_role:read','user_role:write']))]
+#[ApiProperty(property: 'tenantId', serialize: new Groups(['user_role:read']))]
+#[ApiProperty(property: 'createdBy', serialize: new Groups(['user_role:read']))]
+#[ApiProperty(property: 'updatedBy', serialize: new Groups(['user_role:read']))]
+#[ApiProperty(property: 'createdAt', serialize: new Groups(['user_role:read']))]
+#[ApiProperty(property: 'updatedAt', serialize: new Groups(['user_role:read']))]
+#[ApiProperty(property: 'deletedAt', serialize: new Groups(['user_role:read']))]
+
+final class UserRole extends Model
+{
+    use HasFactory;
+    use HasUuids;
+    use SoftDeletes;
+    use TenantOwned;
+
+    protected $table = 'user_roles';
+
+    protected $fillable = [
+        'user_id',
+        'description',
+        'role_id',
+    ];
+
+    protected $casts = [
+        'user_id' => 'integer',
+    ];
+
+    public function role(): BelongsTo
+    {
+        return $this->belongsTo(Role::class, 'role_id');
+    }
+
+
+}

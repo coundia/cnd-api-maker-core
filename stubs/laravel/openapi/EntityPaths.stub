@@ -1,0 +1,135 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{namespace}};
+
+use ApiPlatform\OpenApi\Model;
+use ApiPlatform\OpenApi\Model\Paths;
+use App\OpenApi\PathsContributor;
+
+final class {{entity}}Paths implements PathsContributor
+{
+    public function __construct(private {{entity}}Schemas $schemas) {}
+
+    public function add(Paths $paths): void
+    {
+        $paths->addPath('/api{{routePrefix}}', $this->collectionPath());
+        $paths->addPath('/api{{routePrefix}}/{id}', $this->itemPath());
+    }
+
+    private function collectionPath(): Model\PathItem
+    {
+        $item = $this->schemas->item();
+        $create = $this->schemas->create();
+        $paginated = $this->schemas->paginated($item);
+
+        return new Model\PathItem(
+            get: new Model\Operation(
+                operationId: 'get{{entity}}Collection',
+                tags: ['{{entity}}s'],
+                summary: 'List {{entity}} (paginated)',
+                responses: [
+                    '200' => new Model\Response(
+                        description: 'OK',
+                        content: new \ArrayObject([
+                            'application/json' => new Model\MediaType(schema: $paginated),
+                        ])
+                    ),
+                    '401' => new Model\Response(description: 'Unauthenticated'),
+                    '403' => new Model\Response(description: 'Forbidden'),
+                ],
+                security: [['bearerAuth' => []]]
+            ),
+            post: new Model\Operation(
+                operationId: 'post{{entity}}',
+                tags: ['{{entity}}s'],
+                summary: 'Create {{entity}}',
+                requestBody: new Model\RequestBody(
+                    required: true,
+                    content: new \ArrayObject([
+                        'application/json' => new Model\MediaType(schema: $create),
+                    ])
+                ),
+                responses: [
+                    '201' => new Model\Response(
+                        description: 'Created',
+                        content: new \ArrayObject([
+                            'application/json' => new Model\MediaType(schema: $item),
+                        ])
+                    ),
+                    '401' => new Model\Response(description: 'Unauthenticated'),
+                    '403' => new Model\Response(description: 'Forbidden'),
+                    '422' => new Model\Response(description: 'Validation error'),
+                ],
+                security: [['bearerAuth' => []]]
+            )
+        );
+    }
+
+    private function itemPath(): Model\PathItem
+    {
+        $item = $this->schemas->item();
+        $update = $this->schemas->update();
+        $id = $this->schemas->idParameter('{{entity}} id');
+
+        return new Model\PathItem(
+            get: new Model\Operation(
+                operationId: 'get{{entity}}',
+                tags: ['{{entity}}s'],
+                summary: 'Get a {{entity}}',
+                parameters: [$id],
+                responses: [
+                    '200' => new Model\Response(
+                        description: 'OK',
+                        content: new \ArrayObject([
+                            'application/json' => new Model\MediaType(schema: $item),
+                        ])
+                    ),
+                    '401' => new Model\Response(description: 'Unauthenticated'),
+                    '403' => new Model\Response(description: 'Forbidden'),
+                    '404' => new Model\Response(description: 'Not found'),
+                ],
+                security: [['bearerAuth' => []]]
+            ),
+            put: new Model\Operation(
+                operationId: 'put{{entity}}',
+                tags: ['{{entity}}s'],
+                summary: 'Update a {{entity}}',
+                parameters: [$id],
+                requestBody: new Model\RequestBody(
+                    required: true,
+                    content: new \ArrayObject([
+                        'application/json' => new Model\MediaType(schema: $update),
+                    ])
+                ),
+                responses: [
+                    '200' => new Model\Response(
+                        description: 'OK',
+                        content: new \ArrayObject([
+                            'application/json' => new Model\MediaType(schema: $item),
+                        ])
+                    ),
+                    '401' => new Model\Response(description: 'Unauthenticated'),
+                    '403' => new Model\Response(description: 'Forbidden'),
+                    '404' => new Model\Response(description: 'Not found'),
+                    '422' => new Model\Response(description: 'Validation error'),
+                ],
+                security: [['bearerAuth' => []]]
+            ),
+            delete: new Model\Operation(
+                operationId: 'delete{{entity}}',
+                tags: ['{{entity}}s'],
+                summary: 'Delete a {{entity}}',
+                parameters: [$id],
+                responses: [
+                    '204' => new Model\Response(description: 'No content'),
+                    '401' => new Model\Response(description: 'Unauthenticated'),
+                    '403' => new Model\Response(description: 'Forbidden'),
+                    '404' => new Model\Response(description: 'Not found'),
+                ],
+                security: [['bearerAuth' => []]]
+            )
+        );
+    }
+}

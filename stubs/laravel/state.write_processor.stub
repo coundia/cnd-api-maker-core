@@ -1,0 +1,52 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{namespace}};
+
+use ApiPlatform\Metadata\Operation;
+use ApiPlatform\State\ProcessorInterface;
+use {{inputFqn}};
+use {{payloadResolverFqn}};
+use {{repoFqn}};
+use {{writerFqn}};
+{{securityUses}}
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
+
+final readonly class {{entity}}WriteProcessor implements ProcessorInterface
+{
+    public function __construct(
+        private {{entity}}PayloadResolver $payloadResolver,
+        private {{entity}}Repository $repo,
+        private {{entity}}Writer $writer {{securityCtorArg}}
+    ) {
+    }
+
+    public function process(mixed $data, Operation $operation, array $uriVariables = [], array $context = []): object
+    {
+
+        if (!$data instanceof {{entity}}Input) {
+            throw new BadRequestHttpException('Invalid payload for {{entity}}');
+        }
+
+        $opName = (string) ($operation->getName() ?? '');
+        $payload = $this->payloadResolver->resolve($data);
+
+        if ($opName === '{{opCreate}}') {
+            {{securityRequireCreate}}
+            $p = $this->writer->create($payload);
+            return $p;
+        }
+
+        if ($opName === '{{opUpdate}}') {
+            {{securityRequireUpdate}}
+
+            $id = (string) ($uriVariables['id'] ?? '');
+            $p = $this->repo->findOrFail($id);
+
+            return $this->writer->update($p, $payload);
+        }
+
+        throw new BadRequestHttpException('Unsupported operation: '.$opName);
+    }
+}

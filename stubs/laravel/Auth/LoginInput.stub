@@ -1,0 +1,18 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Dto\Auth;
+
+use ApiPlatform\Metadata\ApiProperty;
+
+final
+// Input DTO for user login.
+class LoginInput
+{
+    #[ApiProperty(openapiContext: ['example' => 'coundia@pcoundia.com'])]
+    public ?string $email = null;
+
+    #[ApiProperty(openapiContext: ['example' => 'password'])]
+    public ?string $password = null;
+}

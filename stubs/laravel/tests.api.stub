@@ -1,0 +1,126 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Tests\Feature;
+
+use ApiPlatform\Laravel\Test\ApiTestAssertionsTrait;
+use App\Models\{{entity}};
+{{tenantUse}}use App\Models\User;
+use Illuminate\Support\Facades\DB;
+use Laravel\Sanctum\Sanctum;
+use Symfony\Component\Uid\Uuid;
+use Tests\Support\BaseApiTestCase;
+use App\Security\Rbac\GrantsRbacPermissions{{#hasTenant}}Tenant{{/hasTenant}};
+{{fileTestsUse}}
+
+final class {{entity}}ApiTest extends BaseApiTestCase
+{
+    use ApiTestAssertionsTrait;
+    use  GrantsRbacPermissions{{#hasTenant}}Tenant{{/hasTenant}};
+
+    public function test_it_creates_a_{{entitySnake}}(): void
+    {
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+        $headers = [];
+        {{#hasTenant}}
+        $tenant = $this->createTenant();
+        $this->setTenantContext($tenant);
+        $headers = $this->tenantHeaders($tenant);{{/hasTenant}}
+        $this->grantPermissions({{#hasTenant}} $tenant, {{/hasTenant}} $user, ['{{entityUpper}}:CREATE']);
+
+{{createArrange}}
+        $uuid = Uuid::v4()->toString();
+
+        $res = $this->apiLdPost('{{uriPrefix}}', {{createPayload}}, $headers);
+
+        $res->assertStatus(201);
+
+{{createResponseAssertions}}
+
+    }
+
+    public function test_it_lists_{{entitySnakePlural}}(): void
+    {
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+        $headers = [];
+        {{#hasTenant}}
+        $tenant = $this->createTenant();
+        $this->setTenantContext($tenant);
+        $headers = $this->tenantHeaders($tenant);{{/hasTenant}}
+        $this->grantPermissions({{#hasTenant}} $tenant, {{/hasTenant}} $user, ['{{entityUpper}}:LIST']);
+
+{{listArrangeAndSeed}}
+        $res = $this->apiLdGet('{{uriPrefix}}', $headers);
+
+        $res->assertOk();
+    }
+
+    public function test_it_gets_a_{{entitySnake}}_item(): void
+    {
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+        $headers = [];
+        {{#hasTenant}}
+        $tenant = $this->createTenant();
+        $this->setTenantContext($tenant);
+        $headers = $this->tenantHeaders($tenant);{{/hasTenant}}
+        $this->grantPermissions({{#hasTenant}} $tenant, {{/hasTenant}} $user, ['{{entityUpper}}:VIEW']);
+
+{{itemArrangeAndSeed}}
+        $res = $this->apiLdGet('{{uriPrefix}}/'.(string) $p->getKey(), $headers);
+
+        $res->assertOk();
+    }
+
+    public function test_it_updates_a_{{entitySnake}}(): void
+    {
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+        $headers = [];
+        {{#hasTenant}}
+        $tenant = $this->createTenant();
+        $this->setTenantContext($tenant);
+        $headers = $this->tenantHeaders($tenant);{{/hasTenant}}
+        $this->grantPermissions({{#hasTenant}} $tenant, {{/hasTenant}} $user, ['{{entityUpper}}:UPDATE']);
+
+        $uuid = Uuid::v4()->toString();
+
+{{updateArrange}}
+        $p = {{entity}}::factory()->create([
+{{updateTenantField}}{{seedUpdateField}}
+        ]);
+
+        $res = $this->apiLdPut('{{uriPrefix}}/'.(string) $p->getKey(), {{updatePayload}}, $headers);
+
+        $res->assertOk();
+
+        $this->assertDatabaseHas('{{table}}', [
+            'id' => (string) $p->getKey(),
+{{assertTenantLine}}{{assertUpdateField}}
+        ]);
+    }
+
+    public function test_it_deletes_a_{{entitySnake}}(): void
+    {
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+        $headers = [];
+        {{#hasTenant}}
+        $tenant = $this->createTenant();
+        $this->setTenantContext($tenant);
+        $headers = $this->tenantHeaders($tenant);{{/hasTenant}}
+        $this->grantPermissions({{#hasTenant}} $tenant, {{/hasTenant}} $user, ['{{entityUpper}}:DELETE']);
+
+{{deleteArrangeAndSeed}}
+        $res = $this->apiLdDelete('{{uriPrefix}}/'.(string) $p->getKey(), $headers);
+
+        $res->assertStatus(204);
+
+{{deleteAssertions}}
+    }
+
+{{fileTests}}
+}

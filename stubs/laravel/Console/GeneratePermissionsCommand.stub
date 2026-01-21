@@ -1,0 +1,258 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Console\Commands;
+
+use ApiPlatform\Metadata\ApiResource;
+use ApiPlatform\Metadata\Delete;
+use ApiPlatform\Metadata\Get;
+use ApiPlatform\Metadata\GetCollection;
+use ApiPlatform\Metadata\Operation;
+use ApiPlatform\Metadata\Post;
+use ApiPlatform\Metadata\Put;
+use App\Models\Permission;
+use App\Models\Tenant;
+use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Str;
+use ReflectionClass;
+use Traversable;
+
+final class GeneratePermissionsCommand extends Command
+{
+    protected $signature = 'security:generate-permissions
+        {--path=app/Models : Scan path}
+        {--output=config/security.generated.php : Output file}
+        {--debug : Print discovered resources/ops}
+        {--sync-db : Insert permissions into DB if missing}
+        {--tenant= : Target a tenant id (uuid). If omitted, sync for all tenants}';
+
+    protected $description = 'Generate RBAC permission codes from ApiResource operations';
+
+    public function handle(): int
+    {
+        $path = base_path((string) $this->option('path'));
+        $out = base_path((string) $this->option('output'));
+        $debug = (bool) $this->option('debug');
+        $syncDb = (bool) $this->option('sync-db');
+        $tenantOpt = $this->option('tenant');
+        $tenantId = is_string($tenantOpt) && $tenantOpt !== '' ? $tenantOpt : null;
+
+        $classes = $this->discoverPhpClasses($path);
+
+        if ($debug) {
+            $this->line('Classes discovered: '.count($classes));
+        }
+
+        $permissions = [];
+
+        foreach ($classes as $class) {
+            $ref = new ReflectionClass($class);
+            $attrs = $ref->getAttributes(ApiResource::class);
+
+            if ($attrs === []) {
+                continue;
+            }
+
+            foreach ($attrs as $attr) {
+                /** @var ApiResource $resource */
+                $resource = $attr->newInstance();
+
+                $resourceKey = $this->resourceKeyFromClass($ref->getShortName());
+                $operations = $resource->getOperations();
+
+                if ($debug) {
+                    $this->line('Resource: '.$class.' => '.$resourceKey);
+                }
+
+                foreach ($this->iterOperations($operations) as $op) {
+                    if (!$op instanceof Operation) {
+                        continue;
+                    }
+
+                    $name = (string) ($op->getName() ?? '');
+                    $code = $this->permissionCodeFromOperation($resourceKey, $name, $op);
+
+
+                    if ($debug) {
+                        $this->line(' - op: '.($name !== '' ? $name : get_class($op)).' => '.($code ?? 'SKIP'));
+                    }
+
+                    if ($code === null) {
+                        continue;
+                    }
+
+                    $code = strtoupper($code);
+
+                    $permissions[$code] = [
+                        'code' => $code,
+                        'label' => $code,
+                        'resource' => $resourceKey,
+                        'operation' => $name !== '' ? $name : get_class($op),
+                    ];
+                }
+            }
+        }
+
+        ksort($permissions);
+
+        $payload = [
+            'generated_at' => now()->toIso8601String(),
+            'permissions' => array_values($permissions),
+        ];
+
+        //File::put($out, "<?php\n\ndeclare(strict_types=1);\n\nreturn ".var_export($payload, true).";\n");
+
+        $this->info('Generated '.count($permissions).' permissions into: '.$out);
+
+        if ($syncDb) {
+            $inserted = $this->syncPermissionsToDatabase(array_values($permissions), $tenantId);
+            $this->info('DB sync inserted '.$inserted.' permissions'.($tenantId ? ' for tenant '.$tenantId : ' for all tenants').'.');
+        }
+
+        return self::SUCCESS;
+    }
+
+    private function syncPermissionsToDatabase(array $generatedPermissions, ?string $tenantId): int
+    {
+        if ($generatedPermissions === []) {
+            return 0;
+        }
+
+        $now = now();
+        $inserted = 0;
+
+        $tenantIds = $tenantId !== null
+            ? [$tenantId]
+            : Tenant::query()->pluck('id')->map(fn ($v) => (string) $v)->all();
+
+        foreach ($tenantIds as $tid) {
+            DB::transaction(function () use ($generatedPermissions, $tid, $now, &$inserted): void {
+                foreach ($generatedPermissions as $perm) {
+                    $code = (string) ($perm['code'] ?? '');
+                    if ($code === '') {
+                        continue;
+                    }
+
+                    $exists = Permission::query()
+                        ->where('tenant_id', $tid)
+                        ->where('code', $code)
+                        ->whereNull('deleted_at')
+                        ->exists();
+
+                    if ($exists) {
+                        continue;
+                    }
+
+                    $p = new Permission();
+                    $p->id = (string) Str::uuid();
+                    $p->tenant_id = $tid;
+                    $p->code = $code;
+                    $p->label = (string) ($perm['label'] ?? Str::headline($code));
+                    $p->active = true;
+
+                    $p->created_at = $now;
+                    $p->updated_at = $now;
+
+                    $p->saveOrFail();
+                    $inserted++;
+                }
+            });
+        }
+
+        return $inserted;
+    }
+
+    private function iterOperations(mixed $operations): iterable
+    {
+        if ($operations instanceof Traversable) {
+            return $operations;
+        }
+
+        if (is_array($operations)) {
+            return $operations;
+        }
+
+        return [];
+    }
+
+    private function discoverPhpClasses(string $path): array
+    {
+        $files = File::allFiles($path);
+        $classes = [];
+
+        foreach ($files as $file) {
+            $content = File::get($file->getPathname());
+
+            if (!str_contains($content, 'namespace ')) {
+                continue;
+            }
+
+            $ns = $this->extractNamespace($content);
+            $cn = $this->extractClassName($content);
+
+            if ($ns === null || $cn === null) {
+                continue;
+            }
+
+            $fqcn = $ns.'\\'.$cn;
+
+            if (class_exists($fqcn)) {
+                $classes[] = $fqcn;
+            }
+        }
+
+        return $classes;
+    }
+
+    private function extractNamespace(string $php): ?string
+    {
+        if (!preg_match('/namespace\s+([^;]+);/m', $php, $m)) {
+            return null;
+        }
+
+        return trim($m[1]);
+    }
+
+    private function extractClassName(string $php): ?string
+    {
+        if (!preg_match('/final\s+class\s+([A-Za-z0-9_]+)/m', $php, $m)
+            && !preg_match('/class\s+([A-Za-z0-9_]+)/m', $php, $m)) {
+            return null;
+        }
+
+        return trim($m[1]);
+    }
+
+    private function resourceKeyFromClass(string $shortName): string
+    {
+        return Str::of($shortName)->snake()->toString();
+    }
+
+    private function permissionCodeFromOperation(string $resourceKey, string $name, Operation $op): ?string
+    {
+        if ($name !== '') {
+            $suffix = Str::after($name, $resourceKey.'_');
+
+            return match ($suffix) {
+                'list' => $resourceKey.':list',
+                'item' => $resourceKey.':read',
+                'create' => $resourceKey.':create',
+                'update' => $resourceKey.':update',
+                'delete' => $resourceKey.':delete',
+                default => null,
+            };
+        }
+
+        return match (true) {
+            $op instanceof GetCollection => $resourceKey.':list',
+            $op instanceof Get => $resourceKey.':read',
+            $op instanceof Post => $resourceKey.':create',
+            $op instanceof Put => $resourceKey.':update',
+            $op instanceof Delete => $resourceKey.':delete',
+            default => null,
+        };
+    }
+}

@@ -1,0 +1,33 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\State\{{entity}};
+
+use ApiPlatform\Metadata\Operation;
+use ApiPlatform\State\ProviderInterface;
+use App\Repository\{{entity}}Repository;
+
+final readonly class {{entity}}ItemProvider implements ProviderInterface
+{
+	public function __construct(
+		private {{entity}}Repository $repository,
+		private {{entity}}Mapper $mapper
+	) {
+	}
+
+	public function provide(Operation $operation, array $uriVariables = [], array $context = []): ?object
+	{
+		$id = $uriVariables['id'] ?? null;
+		if ($id === null) {
+			return null;
+		}
+
+		$entity = {{repoFindOneCall}};
+		if ($entity === null) {
+			return null;
+		}
+
+		return $this->mapper->toOutput($entity);
+	}
+}

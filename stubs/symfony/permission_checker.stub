@@ -1,0 +1,19 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Security;
+
+use Symfony\Component\Security\Core\Authorization\AuthorizationCheckerInterface;
+
+final readonly class PermissionChecker
+{
+    public function __construct(private AuthorizationCheckerInterface $auth) {}
+
+    public function assert(string $permission): void
+    {
+        if (!$this->auth->isGranted($permission)) {
+            throw new \Symfony\Component\Security\Core\Exception\AccessDeniedException();
+        }
+    }
+}

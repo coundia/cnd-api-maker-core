@@ -1,0 +1,72 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Security\Rbac;
+
+use App\Models\Permission;
+use App\Models\Role;
+{{#hasTenant}}use App\Models\Tenant;{{/hasTenant}}
+use App\Models\User;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+
+trait GrantsRbacPermissionsTenant
+{
+    public function grantPermissions({{#hasTenant}}Tenant $tenant,{{/hasTenant}} User $user, array $permissionCodes, array $roleAttrs = []): void
+    {
+        $now = Carbon::now();
+
+        {{#hasTenant}}$tenantId = (string) $tenant->getKey();{{/hasTenant}}
+        $userId = (int) $user->getKey();
+
+        $roleCode = strtoupper(trim((string) ($roleAttrs['code'] ?? 'ROLE_TEST')));
+        if ($roleCode === '') {
+            $roleCode = 'ROLE_TEST';
+        }
+
+        $role = Role::query()
+            {{#hasTenant}}->where('tenant_id', $tenantId){{/hasTenant}}
+            ->where('code', $roleCode)
+            ->first();
+
+        if (!$role instanceof Role) {
+            $role = Role::factory()->create([
+                {{#hasTenant}}'tenant_id' => $tenantId,{{/hasTenant}}
+                'code' => $roleCode,
+                'label' => (string) ($roleAttrs['label'] ?? 'Test Role'),
+                'description' => array_key_exists('description', $roleAttrs) ? (string) $roleAttrs['description'] : null,
+                'color' => (string) ($roleAttrs['color'] ?? '#000000'),
+                'active' => (bool) ($roleAttrs['active'] ?? true),
+            ]);
+        }
+
+        foreach ($permissionCodes as $code) {
+            $permCode = strtoupper(trim((string) $code));
+            if ($permCode === '') {
+                continue;
+            }
+
+            $permission = Permission::query()
+                {{#hasTenant}}->where('tenant_id', $tenantId){{/hasTenant}}
+                ->where('code', $permCode)
+                ->whereNull('deleted_at')
+                ->first()
+                ?? Permission::factory(){{#hasTenant}}->forTenant($tenant){{/hasTenant}}->code($permCode)->create();
+
+            DB::table('role_permissions')->updateOrInsert(
+                ['role_id' => (string) $role->getKey(), 'permission_id' => (string) $permission->getKey()],
+                ['id' => (string) Str::uuid(), 'created_at' => $now, 'updated_at' => $now]
+            );
+
+            Cache::forget('perm:'{{#hasTenant}}.$tenantId.':'{{/hasTenant}}.$userId.':'.$permCode);
+        }
+
+        DB::table('user_roles')->updateOrInsert(
+            [ {{#hasTenant}}'tenant_id' => $tenantId,{{/hasTenant}} 'user_id' => $userId, 'role_id' => (string) $role->getKey()],
+            ['id' => (string) Str::uuid(), 'created_at' => $now, 'updated_at' => $now]
+        );
+    }
+}
